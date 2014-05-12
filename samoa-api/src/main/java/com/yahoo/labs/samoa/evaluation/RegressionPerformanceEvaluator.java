@@ -21,7 +21,7 @@ package com.yahoo.labs.samoa.evaluation;
  */
 
 /*
- *    ClassificationPerformanceEvaluator.java
+ *    RegressionPerformanceEvaluator.java
  *    Copyright (C) 2007 University of Waikato, Hamilton, New Zealand
  *    @author Richard Kirkby (rkirkby@cs.waikato.ac.nz)
  *
@@ -40,13 +40,14 @@ package com.yahoo.labs.samoa.evaluation;
  *    
  */
 
-
 /**
- * Interface implemented by learner evaluators to monitor the results of the
- * learning process.
- * 
+ * Interface implemented by learner evaluators to monitor
+ * the results of the regression learning process.
+ *
  * @author Richard Kirkby (rkirkby@cs.waikato.ac.nz)
  * @version $Revision: 7 $
  */
-public interface ClassificationPerformanceEvaluator extends PerformanceEvaluator {
+public interface RegressionPerformanceEvaluator extends ClassificationPerformanceEvaluator {
+
+   
 }

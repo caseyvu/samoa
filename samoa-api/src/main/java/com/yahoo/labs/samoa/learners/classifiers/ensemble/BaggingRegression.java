@@ -25,51 +25,47 @@ package com.yahoo.labs.samoa.learners.classifiers.ensemble;
  */
 
 import com.yahoo.labs.samoa.instances.Instances;
-import com.yahoo.labs.samoa.learners.ClassificationLearner;
+import com.yahoo.labs.samoa.learners.RegressionLearner;
 import com.yahoo.labs.samoa.topology.Stream;
 import com.yahoo.labs.samoa.topology.TopologyBuilder;
-
 import com.github.javacliparser.ClassOption;
 import com.github.javacliparser.Configurable;
 import com.github.javacliparser.IntOption;
 import com.yahoo.labs.samoa.core.Processor;
-import com.yahoo.labs.samoa.learners.classifiers.trees.VerticalHoeffdingTree;
+import com.yahoo.labs.samoa.learners.classifiers.rules.AMRulesRegressor;
 
 /**
  * The Bagging Classifier by Oza and Russell.
  */
-public class Bagging implements ClassificationLearner , Configurable {
+public class BaggingRegression implements RegressionLearner , Configurable {
 
-	/** The Constant serialVersionUID. */
-	private static final long serialVersionUID = -2971850264864952099L;
-	
 	/** The base learner option. */
 	public ClassOption baseLearnerOption = new ClassOption("baseLearner", 'l',
-			"Classifier to train.", ClassificationLearner.class, VerticalHoeffdingTree.class.getName());
+			"Classifier to train.", RegressionLearner.class, AMRulesRegressor.class.getName());
 
-        
+
 	/** The ensemble size option. */
 	public IntOption ensembleSizeOption = new IntOption("ensembleSize", 's',
 			"The number of models in the bag.", 10, 1, Integer.MAX_VALUE);
 
 	/** The distributor processor. */
 	private BaggingDistributorProcessor distributorP;
-	
+
 	/** The training stream. */
 	private Stream testingStream;
-	
+
 	/** The prediction stream. */
 	private Stream predictionStream;
-	
+
 	/** The result stream. */
 	protected Stream resultStream;
-	
+
 	/** The dataset. */
 	private Instances dataset;
-        
-        protected ClassificationLearner classifier;
-        
-        protected int parallelism;
+
+	protected RegressionLearner classifier;
+
+	protected int parallelism;
 
 	/**
 	 * Sets the layout.
@@ -80,49 +76,49 @@ public class Bagging implements ClassificationLearner , Configurable {
 
 		distributorP = new BaggingDistributorProcessor();
 		distributorP.setSizeEnsemble(sizeEnsemble);
-                this.builder.addProcessor(distributorP, 1);
-		        
-                //instantiate classifier 
-                classifier = (ClassificationLearner) this.baseLearnerOption.getValue();
-                classifier.init(builder, this.dataset, sizeEnsemble);
-        
-		PredictionCombinerProcessor predictionCombinerP= new PredictionCombinerProcessor();
+		this.builder.addProcessor(distributorP, 1);
+
+		//instantiate classifier 
+		classifier = (RegressionLearner) this.baseLearnerOption.getValue();
+		classifier.init(builder, this.dataset, sizeEnsemble);
+
+		RegressionPredictionCombinerProcessor predictionCombinerP= new RegressionPredictionCombinerProcessor();
 		predictionCombinerP.setSizeEnsemble(sizeEnsemble);
 		this.builder.addProcessor(predictionCombinerP, 1);
-		
+
 		//Streams
 		resultStream = this.builder.createStream(predictionCombinerP);
 		predictionCombinerP.setOutputStream(resultStream);
 
- 		this.builder.connectInputKeyStream(classifier.getResultStream(), predictionCombinerP);
-		
+		this.builder.connectInputKeyStream(classifier.getResultStream(), predictionCombinerP);
+
 		testingStream = this.builder.createStream(distributorP);
-                this.builder.connectInputKeyStream(testingStream, classifier.getInputProcessor());
-	
+		this.builder.connectInputKeyStream(testingStream, classifier.getInputProcessor());
+
 		predictionStream = this.builder.createStream(distributorP);		
-                this.builder.connectInputKeyStream(predictionStream, classifier.getInputProcessor());
-		
+		this.builder.connectInputKeyStream(predictionStream, classifier.getInputProcessor());
+
 		distributorP.setOutputStream(testingStream);
 		distributorP.setPredictionStream(predictionStream);
 	}
 
 	/** The builder. */
 	private TopologyBuilder builder;
-		
-	
+
+
 	@Override
 	public void init(TopologyBuilder builder, Instances dataset, int parallelism) {
 		this.builder = builder;
 		this.dataset = dataset;
-                this.parallelism = parallelism;
+		this.parallelism = parallelism;
 		this.setLayout();
 	}
 
-        @Override
+	@Override
 	public Processor getInputProcessor() {
 		return distributorP;
 	}
-        
+
 	/* (non-Javadoc)
 	 * @see samoa.classifiers.Classifier#getResultStream()
 	 */

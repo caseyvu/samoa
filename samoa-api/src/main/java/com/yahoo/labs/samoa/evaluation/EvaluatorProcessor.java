@@ -51,7 +51,7 @@ public class EvaluatorProcessor implements Processor {
 	
 	private static final String ORDERING_MEASUREMENT_NAME = "evaluation instances";
 	
-	private final ClassificationPerformanceEvaluator evaluator;
+	private final PerformanceEvaluator evaluator;
 	private final int samplingFrequency;
 	private final File dumpFile;
 	private transient PrintStream immediateResultStream = null;
@@ -60,7 +60,6 @@ public class EvaluatorProcessor implements Processor {
 	
 	private long totalCount = 0;
 	private long experimentStart = 0;
-	
 	private long sampleStart = 0;
 	
 	private LearningCurve learningCurve;
@@ -199,11 +198,11 @@ public class EvaluatorProcessor implements Processor {
 		
 	public static class Builder{
 		
-		private final ClassificationPerformanceEvaluator evaluator;
+		private final PerformanceEvaluator evaluator;
 		private int samplingFrequency = 100000;
 		private File dumpFile = null;
 		
-		public Builder(ClassificationPerformanceEvaluator evaluator){
+		public Builder(PerformanceEvaluator evaluator){
 			this.evaluator = evaluator;
 		}
 		

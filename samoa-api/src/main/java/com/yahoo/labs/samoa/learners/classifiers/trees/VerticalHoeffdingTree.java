@@ -26,12 +26,11 @@ import com.github.javacliparser.FloatOption;
 import com.github.javacliparser.IntOption;
 import com.yahoo.labs.samoa.core.Processor;
 import com.yahoo.labs.samoa.instances.Instances;
-import com.yahoo.labs.samoa.learners.Learner;
+import com.yahoo.labs.samoa.learners.ClassificationLearner;
 import com.yahoo.labs.samoa.moa.classifiers.core.attributeclassobservers.AttributeClassObserver;
 import com.yahoo.labs.samoa.moa.classifiers.core.attributeclassobservers.DiscreteAttributeClassObserver;
 import com.yahoo.labs.samoa.moa.classifiers.core.attributeclassobservers.NumericAttributeClassObserver;
 import com.yahoo.labs.samoa.moa.classifiers.core.splitcriteria.SplitCriterion;
-import com.yahoo.labs.samoa.topology.ProcessingItem;
 import com.yahoo.labs.samoa.topology.Stream;
 import com.yahoo.labs.samoa.topology.TopologyBuilder;
 
@@ -45,7 +44,7 @@ import com.yahoo.labs.samoa.topology.TopologyBuilder;
  * @author Arinto Murdopo
  *
  */
-public final class VerticalHoeffdingTree implements Learner, Configurable {
+public final class VerticalHoeffdingTree implements ClassificationLearner, Configurable {
 
     private static final long serialVersionUID = -4937416312929984057L;
 
