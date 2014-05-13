@@ -1,4 +1,4 @@
-package com.yahoo.labs.samoa.learners.classifiers.rules.distributed1;
+package com.yahoo.labs.samoa.learners.classifiers.rules.distributed2;
 
 /*
  * #%L
@@ -20,9 +20,12 @@ package com.yahoo.labs.samoa.learners.classifiers.rules.distributed1;
  * #L%
  */
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 
 import com.yahoo.labs.samoa.core.ContentEvent;
 import com.yahoo.labs.samoa.core.Processor;
@@ -30,11 +33,8 @@ import com.yahoo.labs.samoa.instances.Instance;
 import com.yahoo.labs.samoa.instances.Instances;
 import com.yahoo.labs.samoa.learners.InstanceContentEvent;
 import com.yahoo.labs.samoa.learners.ResultContentEvent;
-import com.yahoo.labs.samoa.learners.classifiers.rules.centralized.AMRulesRegressorProcessor;
-import com.yahoo.labs.samoa.learners.classifiers.rules.centralized.AMRulesRegressorProcessor.Builder;
 import com.yahoo.labs.samoa.learners.classifiers.rules.common.ActiveRule;
-import com.yahoo.labs.samoa.learners.classifiers.rules.common.LearningRule;
-import com.yahoo.labs.samoa.learners.classifiers.rules.common.PassiveRule;
+import com.yahoo.labs.samoa.learners.classifiers.rules.common.NonLearningRule;
 import com.yahoo.labs.samoa.learners.classifiers.rules.common.Perceptron;
 import com.yahoo.labs.samoa.learners.classifiers.rules.common.RuleActiveRegressionNode;
 import com.yahoo.labs.samoa.moa.classifiers.rules.core.attributeclassobservers.FIMTDDNumericAttributeClassLimitObserver;
@@ -46,15 +46,18 @@ public class AMRulesAggregatorProcessor implements Processor {
 	/**
 	 * 
 	 */
-	private static final long serialVersionUID = 6303385725332704251L;
-
+	private static final long serialVersionUID = 6866829484252994433L;
+	
 	private int processorId;
 
 	// Rules & default rule
-	protected List<PassiveRule> ruleSet;
+	protected List<NonLearningRule> ruleSet;
 	protected ActiveRule defaultRule;
 	protected int ruleNumberID;
 	protected double[] statistics;
+	
+	private Map<Long, InstanceRecord> pendingPredictions;
+	private boolean lastEventReceived;
 
 	// SAMOA Stream
 	private Stream statisticsStream;
@@ -72,16 +75,9 @@ public class AMRulesAggregatorProcessor implements Processor {
 	protected double tieThreshold;
 	protected int gracePeriod;
 
-	protected boolean noAnomalyDetection;
-	protected double multivariateAnomalyProbabilityThreshold;
-	protected double univariateAnomalyprobabilityThreshold;
-	protected int anomalyNumInstThreshold;
-
-	protected boolean unorderedRules;
-
 	protected FIMTDDNumericAttributeClassLimitObserver numericObserver;
 	protected ErrorWeightedVote voteType;
-	
+
 	/*
 	 * Constructor
 	 */
@@ -96,49 +92,76 @@ public class AMRulesAggregatorProcessor implements Processor {
 		this.tieThreshold = builder.tieThreshold;
 		this.gracePeriod = builder.gracePeriod;
 		
-		this.noAnomalyDetection = builder.noAnomalyDetection;
-		this.multivariateAnomalyProbabilityThreshold = builder.multivariateAnomalyProbabilityThreshold;
-		this.univariateAnomalyprobabilityThreshold = builder.univariateAnomalyprobabilityThreshold;
-		this.anomalyNumInstThreshold = builder.anomalyNumInstThreshold;
-		this.unorderedRules = builder.unorderedRules;
-		
 		this.numericObserver = builder.numericObserver;
 		this.voteType = builder.voteType;
 	}
-	
-	/*
-	 * Process
-	 */
 	@Override
 	public boolean process(ContentEvent event) {
-		if (event instanceof InstanceContentEvent) {
-			InstanceContentEvent instanceEvent = (InstanceContentEvent) event;
-			// predict
-			if (instanceEvent.isTesting()) {
-				this.predictOnInstance(instanceEvent);
+		if (event instanceof RuleContentEvent) { // remove rule
+			RuleContentEvent rce = (RuleContentEvent) event;
+			if (rce.isRemoving()) { // Adding is not applicable
+				this.removeRule(rce.getRuleNumberID());
 			}
-		
-			// train
-			if (instanceEvent.isTraining()) {
-				this.trainOnInstance(instanceEvent);
-			}
-		}
-		else if (event instanceof PredicateContentEvent) {
+		} 
+		else if (event instanceof PredicateContentEvent) { // add predicate to rule
 			this.updateRuleSplitNode((PredicateContentEvent) event);
 		}
+		else if (event instanceof PredictionContentEvent) { // prediction
+			this.processPredictionEvent((PredictionContentEvent) event);
+		}
+		else if (event instanceof InstanceContentEvent) {
+			this.processInstanceEvent((InstanceContentEvent)event);
+		}
 		
-		return true;
+		return false;
 	}
 	
 	/*
-	 * Prediction
+	 * Process InstanceContentEvent
 	 */
-	private void predictOnInstance (InstanceContentEvent instanceEvent) {
-		double[] prediction = getVotesForInstance(instanceEvent.getInstance());
-		ResultContentEvent rce = newResultContentEvent(prediction, instanceEvent);
-		resultStream.put(rce);
+	private void processInstanceEvent(InstanceContentEvent ice) {
+		Instance instance = ice.getInstance();
+		long instanceIndex = ice.getInstanceIndex();
+		
+		if (ice.isLastEvent()) this.lastEventReceived = true;
+		
+		boolean coveredBySomeRule = false;
+		List<Integer> ruleIDs = new ArrayList<Integer>();
+		InstanceRecord record = new InstanceRecord(instance, ice.getClassId(), ice.getEvaluationIndex());
+		for (NonLearningRule rule:ruleSet) {
+			if (rule.isCovering(instance)) {
+				coveredBySomeRule = true;
+				// Prepare the record 
+				record.addPredictionRecord(rule.getRuleNumberID());
+				ruleIDs.add(rule.getRuleNumberID());
+			}
+		}
+		
+		if (!coveredBySomeRule) {
+			// predict with default rule
+			if (ice.isTesting()) {
+				double[] prediction = getVotesForInstanceWithDefaultRule(instance);
+				ResultContentEvent rce = newResultContentEvent(prediction, ice);
+				resultStream.put(rce);
+			}
+			
+			// train with default rule
+			if (ice.isTraining()) {
+				this.traingOnInstanceForDefaultRule(instance);
+			}
+		}
+		else {
+			this.pendingPredictions.put(instanceIndex, record);
+			// Send instance to the rule
+			for (Integer ruleID:ruleIDs) {
+				this.sendInstanceToRule(ice, ruleID);
+			}
+		}
 	}
 	
+	/*
+	 * Prediction with Default Rule
+	 */
 	/**
 	 * Helper method to generate new ResultContentEvent based on an instance and
 	 * its prediction result.
@@ -153,40 +176,20 @@ public class AMRulesAggregatorProcessor implements Processor {
 		return rce;
 	}
 	
-	/**
-	 * getVotesForInstance extension of the instance method getVotesForInstance
-	 * in moa.classifier.java
-	 * returns the prediction of the instance.
-	 * Called in EvaluateModelRegression
-	 */            
-	private double[] getVotesForInstance(Instance instance) {
+	private ResultContentEvent newResultContentEvent(double[] prediction, long instanceIndex, 
+			Instance instance, int classId, int evalIndex, boolean isLast) {
+		ResultContentEvent rce = new ResultContentEvent(instanceIndex, instance, classId, prediction, isLast);
+		rce.setClassifierIndex(this.processorId);
+		rce.setEvaluationIndex(evalIndex);
+		return rce;
+	}
+	
+	private double[] getVotesForInstanceWithDefaultRule(Instance instance) {
 		ErrorWeightedVote errorWeightedVote=newErrorWeightedVote();
-		//DoubleVector combinedVote = new DoubleVector();   
-		int numberOfRulesCovering = 0;
-		
-		for (PassiveRule rule: ruleSet) {
-			if (rule.isCovering(instance) == true){
-				numberOfRulesCovering++;
-				//DoubleVector vote = new DoubleVector(rule.getPrediction(instance));
-				double [] vote=rule.getPrediction(instance);
-				double error= rule.getCurrentError();
-				errorWeightedVote.addVote(vote,error);
-				//combinedVote.addValues(vote);
-				if (!this.unorderedRules) { // Ordered Rules Option.
-					break; // Only one rule cover the instance.
-				}
-			}
-		}
-
-		if (numberOfRulesCovering == 0) {
-			//combinedVote = new DoubleVector(defaultRule.getPrediction(instance));
-			double [] vote=defaultRule.getPrediction(instance);
-			double error= defaultRule.getCurrentError();
-			errorWeightedVote.addVote(vote,error);	
-		} 	
+		double [] vote=defaultRule.getPrediction(instance);
+		double error= defaultRule.getCurrentError();
+		errorWeightedVote.addVote(vote,error);
 		double[] weightedVote=errorWeightedVote.computeWeightedVote();
-		//double weightedError=errorWeightedVote.getWeightedError();
-		
 		return weightedVote;
 	}
 
@@ -195,95 +198,23 @@ public class AMRulesAggregatorProcessor implements Processor {
 	}
 	
 	/*
-	 * Training
+	 * Training with default rule
 	 */
-	private void trainOnInstance (InstanceContentEvent instanceEvent) {
-		this.trainOnInstanceImpl(instanceEvent.getInstance());
-	}
-	public void trainOnInstanceImpl(Instance instance) {
-		/**
-		 * AMRules Algorithm
-		 * 
-		 //For each rule in the rule set
-			//If rule covers the instance
-				//if the instance is not an anomaly	
-					//Update Change Detection Tests
-				    	//Compute prediction error
-				    	//Call PHTest
-						//If change is detected then
-							//Remove rule
-						//Else
-							//Update sufficient statistics of rule
-							//If number of examples in rule  > Nmin
-								//Expand rule
-						//If ordered set then
-							//break
-			//If none of the rule covers the instance
-				//Update sufficient statistics of default rule
-				//If number of examples in default rule is multiple of Nmin
-					//Expand default rule and add it to the set of rules
-					//Reset the default rule
-		 */
-		boolean rulesCoveringInstance = false;
-		Iterator<PassiveRule> ruleIterator= this.ruleSet.iterator();
-		while (ruleIterator.hasNext()) { 
-			PassiveRule rule = ruleIterator.next();
-			if (rule.isCovering(instance) == true) {
-				rulesCoveringInstance = true;
-				if (isAnomaly(instance, rule) == false) {
-					//Update Change Detection Tests
-					double error = rule.computeError(instance); //Use adaptive mode error
-					boolean changeDetected = rule.getLearningNode().updateChangeDetection(error);
-					if (changeDetected == true) {
-						ruleIterator.remove();
-						// Send to statistics PIs
-						sendRemoveRuleEvent(rule.getRuleNumberID());
-					} else {
-						rule.updateStatistics(instance);
-						// Send instance to statistics PIs
-						sendInstanceToRule(instance, rule.getRuleNumberID());
-					}
-					if (!this.unorderedRules) 
-						break;
-				}
-			}
-		}	
+	private void traingOnInstanceForDefaultRule(Instance instance) {
+		defaultRule.updateStatistics(instance);
+		if (defaultRule.getInstancesSeen() % this.gracePeriod == 0.0) {
+			if (defaultRule.tryToExpand(this.splitConfidence, this.tieThreshold) == true) {
+				ActiveRule newDefaultRule=newRule(defaultRule.getRuleNumberID(),(RuleActiveRegressionNode)defaultRule.getLearningNode(),
+						((RuleActiveRegressionNode)defaultRule.getLearningNode()).getStatisticsOtherBranchSplit()); //other branch
+				defaultRule.split();
+				defaultRule.setRuleNumberID(++ruleNumberID);
+				this.ruleSet.add(new NonLearningRule(this.defaultRule));
+				// send to statistics PI
+				sendAddRuleEvent(defaultRule.getRuleNumberID(), this.defaultRule);
+				defaultRule=newDefaultRule;
 
-		if (rulesCoveringInstance == false){ 
-			defaultRule.updateStatistics(instance);
-			if (defaultRule.getInstancesSeen() % this.gracePeriod == 0.0) {
-				if (defaultRule.tryToExpand(this.splitConfidence, this.tieThreshold) == true) {
-					ActiveRule newDefaultRule=newRule(defaultRule.getRuleNumberID(),(RuleActiveRegressionNode)defaultRule.getLearningNode(),
-							((RuleActiveRegressionNode)defaultRule.getLearningNode()).getStatisticsOtherBranchSplit()); //other branch
-					defaultRule.split();
-					defaultRule.setRuleNumberID(++ruleNumberID);
-					this.ruleSet.add(new PassiveRule(this.defaultRule));
-					// send to statistics PI
-					sendAddRuleEvent(defaultRule.getRuleNumberID(), this.defaultRule);
-					defaultRule=newDefaultRule;
-				}
 			}
 		}
-	}
-
-	/**
-	 * Method to verify if the instance is an anomaly.
-	 * @param instance
-	 * @param rule
-	 * @return
-	 */
-	private boolean isAnomaly(Instance instance, LearningRule rule) {
-		//AMRUles is equipped with anomaly detection. If on, compute the anomaly value. 			
-		boolean isAnomaly = false;	
-		if (this.noAnomalyDetection == false){
-			if (rule.getInstancesSeen() >= this.anomalyNumInstThreshold) {
-				isAnomaly = rule.isAnomaly(instance, 
-						this.univariateAnomalyprobabilityThreshold,
-						this.multivariateAnomalyProbabilityThreshold,
-						this.anomalyNumInstThreshold);
-			}
-		}
-		return isAnomaly;
 	}
 	
 	/*
@@ -333,17 +264,62 @@ public class AMRulesAggregatorProcessor implements Processor {
 	}
 	
 	/*
-	 * Add predicate/RuleSplitNode for a rule
+	 * Process PredicateContentEvent
 	 */
 	private void updateRuleSplitNode(PredicateContentEvent pce) {
 		int ruleID = pce.getRuleNumberID();
-		for (PassiveRule rule:ruleSet) {
+		for (NonLearningRule rule:ruleSet) {
 			if (rule.getRuleNumberID() == ruleID) {
-				if (rule.nodeListAdd(pce.getRuleSplitNode())) {
-					rule.setLearningNode(pce.getLearningNode());
-				}
+				rule.nodeListAdd(pce.getRuleSplitNode());
 			}
 		}
+	}
+	
+	/*
+	 * Process PredictionContentEvent
+	 */
+	private void processPredictionEvent(PredictionContentEvent pce) {
+		long instanceIndex = pce.getInstanceIndex();
+		InstanceRecord record = this.pendingPredictions.get(instanceIndex);
+		if (record.setPrediction(pce.getRuleNumberID(),pce.getPrediction(), pce.getError())) {
+			if (record.hasReceivedAllPredictions()) {
+				// Get prediction
+				double[] votes = this.getCummulativePrediction(record);
+				
+				// Remove pending record
+				this.pendingPredictions.remove(instanceIndex);
+				
+				// Send prediction
+				boolean isLast = this.lastEventReceived && this.pendingPredictions.isEmpty();
+				ResultContentEvent rce = this.newResultContentEvent(votes, instanceIndex, record.getInstance(), 
+						record.getClassId(), record.getEvaluationIndex(), isLast);
+				resultStream.put(rce);
+			}
+		}
+	}
+	
+	private double[] getCummulativePrediction(InstanceRecord record) {
+		ErrorWeightedVote errorWeightedVote=newErrorWeightedVote();
+		for (PredictionRecord prediction:record.getPredictions()) {
+			errorWeightedVote.addVote(prediction.getPrediction(), prediction.getError());
+		}
+		return errorWeightedVote.computeWeightedVote();
+	}
+	
+	
+	/*
+	 * Process RuleContentEvent
+	 */
+	private boolean removeRule(int ruleID) {
+		Iterator<NonLearningRule> ruleIterator= this.ruleSet.iterator();
+		while (ruleIterator.hasNext()) { 
+			NonLearningRule rule = ruleIterator.next();
+			if (rule.getRuleNumberID() == ruleID) {
+				ruleIterator.remove();
+				return true;
+			}
+		}
+		return false;
 	}
 
 	@Override
@@ -353,7 +329,10 @@ public class AMRulesAggregatorProcessor implements Processor {
 		this.ruleNumberID=0;
 		this.defaultRule = newRule(++this.ruleNumberID);
 		
-		this.ruleSet = new LinkedList<PassiveRule>();
+		this.ruleSet = new LinkedList<NonLearningRule>();
+		
+		this.pendingPredictions = new HashMap<Long,InstanceRecord>();
+		this.lastEventReceived = false;
 	}
 
 	/* 
@@ -372,14 +351,9 @@ public class AMRulesAggregatorProcessor implements Processor {
 	/*
 	 * Send events
 	 */
-	private void sendInstanceToRule(Instance instance, int ruleID) {
-		AssignmentContentEvent ace = new AssignmentContentEvent(ruleID, instance);
+	private void sendInstanceToRule(InstanceContentEvent ice, int ruleID) {
+		AssignmentContentEvent ace = new AssignmentContentEvent(ruleID, ice.getInstanceIndex(), ice.getInstance(), ice.isTesting(), ice.isTraining());
 		this.statisticsStream.put(ace);
-	}
-	
-	private void sendRemoveRuleEvent(int ruleID) {
-		RuleContentEvent rce = new RuleContentEvent(ruleID, null, true);
-		this.statisticsStream.put(rce);
 	}
 	
 	private void sendAddRuleEvent(int ruleID, ActiveRule rule) {
@@ -412,7 +386,7 @@ public class AMRulesAggregatorProcessor implements Processor {
     public boolean isRandomizable() {
     	return true;
     }
-	
+
 	/*
 	 * Builder
 	 */
@@ -426,13 +400,6 @@ public class AMRulesAggregatorProcessor implements Processor {
 		private double splitConfidence;
 		private double tieThreshold;
 		private int gracePeriod;
-		
-		private boolean noAnomalyDetection;
-		private double multivariateAnomalyProbabilityThreshold;
-		private double univariateAnomalyprobabilityThreshold;
-		private int anomalyNumInstThreshold;
-		
-		private boolean unorderedRules;
 		
 		private FIMTDDNumericAttributeClassLimitObserver numericObserver;
 		private ErrorWeightedVote voteType;
@@ -454,11 +421,7 @@ public class AMRulesAggregatorProcessor implements Processor {
 			this.tieThreshold = processor.tieThreshold;
 			this.gracePeriod = processor.gracePeriod;
 			
-			this.noAnomalyDetection = processor.noAnomalyDetection;
-			this.multivariateAnomalyProbabilityThreshold = processor.multivariateAnomalyProbabilityThreshold;
-			this.univariateAnomalyprobabilityThreshold = processor.univariateAnomalyprobabilityThreshold;
-			this.anomalyNumInstThreshold = processor.anomalyNumInstThreshold;
-			this.unorderedRules = processor.unorderedRules;
+			
 			
 			this.numericObserver = processor.numericObserver;
 			this.voteType = processor.voteType;
@@ -509,31 +472,6 @@ public class AMRulesAggregatorProcessor implements Processor {
 			return this;
 		}
 		
-		public Builder noAnomalyDetection(boolean noAnomalyDetection) {
-			this.noAnomalyDetection = noAnomalyDetection;
-			return this;
-		}
-		
-		public Builder multivariateAnomalyProbabilityThreshold(double mAnomalyThreshold) {
-			this.multivariateAnomalyProbabilityThreshold = mAnomalyThreshold;
-			return this;
-		}
-		
-		public Builder univariateAnomalyProbabilityThreshold(double uAnomalyThreshold) {
-			this.univariateAnomalyprobabilityThreshold = uAnomalyThreshold;
-			return this;
-		}
-		
-		public Builder anomalyNumberOfInstancesThreshold(int anomalyNumInstThreshold) {
-			this.anomalyNumInstThreshold = anomalyNumInstThreshold;
-			return this;
-		}
-		
-		public Builder unorderedRules(boolean unorderedRules) {
-			this.unorderedRules = unorderedRules;
-			return this;
-		}
-		
 		public Builder numericObserver(FIMTDDNumericAttributeClassLimitObserver numericObserver) {
 			this.numericObserver = numericObserver;
 			return this;
@@ -548,5 +486,91 @@ public class AMRulesAggregatorProcessor implements Processor {
 			return new AMRulesAggregatorProcessor(this);
 		}
 	}
-
+	
+	static class InstanceRecord {
+		private final Instance instance;
+		private final int classId;
+		private final int evaluationIndex;
+		private List<PredictionRecord> predictions;
+		private int receivedPredictionsCount;
+		
+		InstanceRecord(Instance instance, int classId, int evalIndex) {
+			this.instance = instance;
+			this.classId = classId;
+			this.evaluationIndex = evalIndex;
+			this.predictions = new ArrayList<PredictionRecord>();
+			this.receivedPredictionsCount = 0;
+		}
+		
+		Instance getInstance() {
+			return this.instance;
+		}
+		
+		int getClassId() {
+			return this.classId;
+		}
+		
+		int getEvaluationIndex() {
+			return this.evaluationIndex;
+		}
+		
+		void addPredictionRecord(int ruleID) {
+			this.predictions.add(new PredictionRecord(ruleID));
+		}
+		
+		boolean setPrediction(int ruleID, double[] prediction, double error) {
+			for (PredictionRecord record:this.predictions) {
+				if (record.getRuleNumberID() == ruleID) {
+					if (!record.isSet()) receivedPredictionsCount++;
+					record.setPrediction(prediction, error);
+					return true;
+				}
+			}
+			return false;
+		}
+		
+		boolean hasReceivedAllPredictions() {
+			return (receivedPredictionsCount == predictions.size());
+		}
+		
+		List<PredictionRecord> getPredictions() {
+			return this.predictions;
+		}
+	}
+	
+	static class PredictionRecord {
+		private final int ruleNumberID;
+		private double[] prediction;
+		private double error;
+		private boolean isSet;
+		
+		PredictionRecord(int ruleID) {
+			this.ruleNumberID = ruleID;
+			this.isSet = false;
+			this.error = 0;
+			this.prediction = null;
+		}
+		
+		int getRuleNumberID() {
+			return this.ruleNumberID;
+		}
+		
+		void setPrediction(double[] prediction, double error) {
+			this.isSet = true;
+			this.prediction = prediction;
+			this.error = error;
+		}
+		
+		double[] getPrediction() {
+			return this.prediction;
+		}
+		
+		double getError() {
+			return this.error;
+		}
+		
+		boolean isSet() {
+			return this.isSet;
+		}
+	}
 }
