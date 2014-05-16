@@ -50,7 +50,7 @@ public class FIMTDDNumericAttributeClassLimitObserver extends FIMTDDNumericAttri
 	 */
 	private static final long serialVersionUID = 1L;
 	protected int maxNodes;
-	public IntOption maxNodesOption = new IntOption("maxNodesOption", 'z', "Maximum number of nodes", 50, 0, Integer.MAX_VALUE);
+	//public IntOption maxNodesOption = new IntOption("maxNodesOption", 'z', "Maximum number of nodes", 50, 0, Integer.MAX_VALUE);
 
 
 	protected int numNodes;
@@ -68,14 +68,15 @@ public class FIMTDDNumericAttributeClassLimitObserver extends FIMTDDNumericAttri
 		if (Double.isNaN(attVal)) { //Instance.isMissingValue(attVal)
 		} else {
 			if (this.root == null) {
-				maxNodes=maxNodesOption.getValue();
+				//maxNodes=maxNodesOption.getValue();
+				maxNodes = 50;
 				this.root = new FIMTDDNumericAttributeClassLimitObserver.Node(attVal, classVal, weight);
 			} else {
 				this.root.insertValue(attVal, classVal, weight);
 			}
 		}
 	}
-
+	 
 	protected class Node extends FIMTDDNumericAttributeClassObserver.Node {
 		/**
 		 * 

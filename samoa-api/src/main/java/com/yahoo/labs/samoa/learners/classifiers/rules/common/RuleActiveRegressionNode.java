@@ -100,6 +100,9 @@ public class RuleActiveRegressionNode extends RuleRegressionNode implements Rule
 	/*
 	 * Constructor with builder
 	 */
+	public RuleActiveRegressionNode() {
+		super();
+	}
 	public RuleActiveRegressionNode(ActiveRule.Builder builder) {
 		super(builder.statistics);
         this.changeDetection = builder.changeDetection;

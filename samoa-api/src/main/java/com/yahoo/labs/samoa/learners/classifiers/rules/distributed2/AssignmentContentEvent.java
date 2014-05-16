@@ -36,6 +36,9 @@ public class AssignmentContentEvent implements ContentEvent {
 	private final boolean isTraining;
 	private final long instanceIndex;
 	
+	public AssignmentContentEvent() {
+		this(0, 0, null, false, false);
+	}
 	public AssignmentContentEvent(int ruleID, long instanceIndex, 
 			Instance instance, boolean isTesting, boolean isTraining) {
 		this.ruleNumberID = ruleID;

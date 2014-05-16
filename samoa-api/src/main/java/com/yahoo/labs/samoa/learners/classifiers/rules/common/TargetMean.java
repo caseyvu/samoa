@@ -45,9 +45,13 @@ package com.yahoo.labs.samoa.learners.classifiers.rules.common;
  * 
  *  */
 
+import com.esotericsoftware.kryo.Kryo;
+import com.esotericsoftware.kryo.Serializer;
+import com.esotericsoftware.kryo.io.Input;
+import com.esotericsoftware.kryo.io.Output;
 import com.github.javacliparser.FloatOption;
-
 import com.yahoo.labs.samoa.instances.Instance;
+import com.yahoo.labs.samoa.learners.classifiers.rules.common.Perceptron.PerceptronData;
 import com.yahoo.labs.samoa.moa.classifiers.AbstractClassifier;
 import com.yahoo.labs.samoa.moa.classifiers.Regressor;
 import com.yahoo.labs.samoa.moa.core.Measurement;
@@ -150,6 +154,16 @@ public class TargetMean extends AbstractClassifier implements Regressor {
 		 this.fadingErrorFactor = t.fadingErrorFactor;
 		 this.fadingErrorFactorOption = t.fadingErrorFactorOption;
 	 }
+	 
+	 public TargetMean(TargetMeanData td) {
+		 this();
+		 this.n = td.n;
+		 this.sum = td.sum;
+		 this.errorSum = td.errorSum;
+		 this.nError = td.nError;
+		 this.fadingErrorFactor = td.fadingErrorFactor;
+		 this.fadingErrorFactorOption.setValue(td.fadingErrorFactorOptionValue);
+	 }
 
 	 public TargetMean() {
 		 super();
@@ -160,4 +174,47 @@ public class TargetMean extends AbstractClassifier implements Regressor {
 		 this.errorSum=0;
 		 this.nError=0;
 	 }
+	 
+	 public static class TargetMeanData {
+		 private long n;
+		 private double sum;
+		 private double errorSum;
+		 private double nError;
+		 private double fadingErrorFactor;
+		 private double fadingErrorFactorOptionValue;
+		 
+		 public TargetMeanData() {
+			 
+		 }
+		 
+		 public TargetMeanData(TargetMean tm) {
+			 this.n = tm.n;
+			 this.sum = tm.sum;
+			 this.errorSum = tm.errorSum;
+			 this.nError = tm.nError;
+			 this.fadingErrorFactor = tm.fadingErrorFactor;
+			 if (tm.fadingErrorFactorOption != null)
+				 this.fadingErrorFactorOptionValue = tm.fadingErrorFactorOption.getValue();
+			 else
+				 this.fadingErrorFactorOptionValue = 0.99;
+		 }
+		 
+		 public TargetMean build() {
+			 return new TargetMean(this);
+		 }
+	 }
+	 
+	 public static final class TargetMeanSerializer extends Serializer<TargetMean>{
+
+			@Override
+			public void write(Kryo kryo, Output output, TargetMean t) {
+				kryo.writeObjectOrNull(output, new TargetMeanData(t), TargetMeanData.class);
+			}
+
+			@Override
+			public TargetMean read(Kryo kryo, Input input, Class<TargetMean> type) {
+				TargetMeanData data = kryo.readObjectOrNull(input, TargetMeanData.class);
+				return data.build();
+			}
+		}
 }

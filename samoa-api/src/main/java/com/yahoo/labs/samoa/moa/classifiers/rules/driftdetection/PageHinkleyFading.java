@@ -46,6 +46,10 @@ public class PageHinkleyFading extends PageHinkleyTest {
 	private static final long serialVersionUID = 7110953184708812339L;
 	private double fadingFactor=0.99;
 
+	public PageHinkleyFading() {
+		super();
+	}
+	
 	public PageHinkleyFading(double threshold, double alpha) {
 		super(threshold, alpha);
 	}

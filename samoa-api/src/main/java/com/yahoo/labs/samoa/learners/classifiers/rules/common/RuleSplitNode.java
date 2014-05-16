@@ -39,6 +39,9 @@ public class RuleSplitNode extends SplitNode {
     /**
      * Create a new RuleSplitNode
      */
+    public RuleSplitNode() {
+    	this(null, new double[0]);
+    }
     public RuleSplitNode(InstanceConditionalTest splitTest, double[] classObservations) {
         super(splitTest, classObservations);
     }

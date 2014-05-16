@@ -34,6 +34,9 @@ public class PredictionContentEvent implements ContentEvent {
 	private final double error;
 	private final long instanceIndex;
 
+	public PredictionContentEvent() {
+		this(0, null, 0, 0);
+	}
 	public PredictionContentEvent(long instanceIndex, double[] prediction, double error, int ruleID) {
 		this.ruleNumberID = ruleID;
 		this.instanceIndex = instanceIndex;

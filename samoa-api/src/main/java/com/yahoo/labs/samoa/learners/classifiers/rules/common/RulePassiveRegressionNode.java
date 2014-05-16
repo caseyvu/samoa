@@ -20,7 +20,16 @@ package com.yahoo.labs.samoa.learners.classifiers.rules.common;
  * #L%
  */
 
+import com.esotericsoftware.kryo.Kryo;
+import com.esotericsoftware.kryo.Serializer;
+import com.esotericsoftware.kryo.io.Input;
+import com.esotericsoftware.kryo.io.Output;
 import com.yahoo.labs.samoa.instances.Instance;
+import com.yahoo.labs.samoa.learners.classifiers.rules.common.Perceptron.PerceptronData;
+import com.yahoo.labs.samoa.learners.classifiers.rules.common.TargetMean.TargetMeanData;
+import com.yahoo.labs.samoa.learners.classifiers.trees.AttributeContentEvent;
+import com.yahoo.labs.samoa.moa.classifiers.rules.driftdetection.PageHinkleyFading;
+import com.yahoo.labs.samoa.moa.classifiers.rules.driftdetection.PageHinkleyTest;
 import com.yahoo.labs.samoa.moa.core.DoubleVector;
 
 public class RulePassiveRegressionNode extends RuleRegressionNode implements RulePassiveLearningNode {
@@ -67,6 +76,4 @@ public class RulePassiveRegressionNode extends RuleRegressionNode implements Rul
 			this.targetMean.trainOnInstance(inst);
 		}
 	}
-	
-	
 }

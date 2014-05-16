@@ -38,6 +38,9 @@ public class PredicateContentEvent implements ContentEvent {
 	/*
 	 * Constructor
 	 */
+	public PredicateContentEvent () {
+		this(0, null, false);
+	}
 	public PredicateContentEvent (int ruleID, RuleSplitNode ruleSplitNode, boolean isNew) {
 		this.ruleNumberID = ruleID;
 		this.ruleSplitNode = ruleSplitNode;

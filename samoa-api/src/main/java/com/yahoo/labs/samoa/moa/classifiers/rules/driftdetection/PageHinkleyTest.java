@@ -61,6 +61,10 @@ public class PageHinkleyTest implements Serializable {
 	protected double threshold;
 	protected double alpha;
 
+	public PageHinkleyTest() {
+		this(0,0);
+	}
+	
 	public PageHinkleyTest(double threshold, double alpha) {
 		this.threshold = threshold;
 		this.alpha = alpha;

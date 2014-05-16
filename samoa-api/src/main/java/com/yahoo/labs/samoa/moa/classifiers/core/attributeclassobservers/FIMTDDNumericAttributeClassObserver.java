@@ -102,7 +102,7 @@ public class FIMTDDNumericAttributeClassObserver extends BinaryTreeNumericAttrib
     }
 
     // Root node of the E-BST structure for this attribute
-    protected Node root = null;
+    public Node root = null;
 
     // Global variables for use in the FindBestSplit algorithm
     double sumTotalLeft;

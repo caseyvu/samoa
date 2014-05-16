@@ -33,6 +33,10 @@ public class AssignmentContentEvent implements ContentEvent {
 	private int ruleNumberID;
 	private Instance instance;
 	
+	public AssignmentContentEvent() {
+		this(0, null);
+	}
+	
 	public AssignmentContentEvent(int ruleID, Instance instance) {
 		this.ruleNumberID = ruleID;
 		this.instance = instance;

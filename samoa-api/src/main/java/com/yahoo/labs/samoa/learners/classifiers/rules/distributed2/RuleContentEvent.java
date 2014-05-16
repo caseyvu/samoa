@@ -34,6 +34,9 @@ public class RuleContentEvent implements ContentEvent {
 	private final ActiveRule addingRule; // for removing rule, we only need the rule's ID
 	private final boolean isRemoving;
 	
+	public RuleContentEvent() {
+		this(0, null, false);
+	}
 	public RuleContentEvent(int ruleID, ActiveRule rule, boolean isRemoving) {
 		this.ruleNumberID = ruleID;
 		this.isRemoving = isRemoving;

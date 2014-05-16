@@ -60,6 +60,9 @@ public class NumericAttributeBinaryRulePredicate extends InstanceConditionalBina
 
     protected int operator; // 0 =, 1<=, 2>
 
+    public NumericAttributeBinaryRulePredicate() {
+    	this(0,0,0);
+    }
     public NumericAttributeBinaryRulePredicate(int attIndex, double attValue,
             int operator) {
         this.attIndex = attIndex;

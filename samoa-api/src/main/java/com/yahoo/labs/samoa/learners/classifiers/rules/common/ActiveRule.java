@@ -43,6 +43,12 @@ public class ActiveRule extends LearningRule {
 	/*
 	 * Constructor with Builder
 	 */
+	public ActiveRule() {
+		super();
+		this.builder = null;
+		this.learningNode = null;
+		this.ruleNumberID = 0;
+	}
 	public ActiveRule(Builder builder) {
 		super();
 		this.setBuilder(builder);
