@@ -51,7 +51,6 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import com.github.javacliparser.FloatOption;
 import com.yahoo.labs.samoa.instances.Instance;
-import com.yahoo.labs.samoa.learners.classifiers.rules.common.Perceptron.PerceptronData;
 import com.yahoo.labs.samoa.moa.classifiers.AbstractClassifier;
 import com.yahoo.labs.samoa.moa.classifiers.Regressor;
 import com.yahoo.labs.samoa.moa.core.Measurement;

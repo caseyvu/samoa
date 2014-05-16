@@ -27,12 +27,8 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import com.yahoo.labs.samoa.instances.Instance;
-import com.yahoo.labs.samoa.learners.classifiers.rules.common.TargetMean.TargetMeanData;
-import com.yahoo.labs.samoa.learners.classifiers.trees.AttributeContentEvent;
 import com.yahoo.labs.samoa.moa.classifiers.AbstractClassifier;
 import com.yahoo.labs.samoa.moa.classifiers.Regressor;
-import com.yahoo.labs.samoa.moa.classifiers.rules.driftdetection.PageHinkleyFading;
-import com.yahoo.labs.samoa.moa.classifiers.rules.driftdetection.PageHinkleyTest;
 import com.yahoo.labs.samoa.moa.core.DoubleVector;
 import com.yahoo.labs.samoa.moa.core.Measurement;
 

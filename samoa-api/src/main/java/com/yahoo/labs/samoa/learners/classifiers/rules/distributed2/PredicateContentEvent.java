@@ -21,7 +21,6 @@ package com.yahoo.labs.samoa.learners.classifiers.rules.distributed2;
  */
 
 import com.yahoo.labs.samoa.core.ContentEvent;
-import com.yahoo.labs.samoa.learners.classifiers.rules.common.RulePassiveRegressionNode;
 import com.yahoo.labs.samoa.learners.classifiers.rules.common.RuleSplitNode;
 
 public class PredicateContentEvent implements ContentEvent {
