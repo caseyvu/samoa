@@ -108,6 +108,10 @@ final public class InstanceContentEvent implements ContentEvent {
 		return isTraining;
 	}
 	
+	public void setTraining(boolean training) {
+		this.isTraining = training;
+	}
+	
 	/**
 	 * Checks if is testing.
 	 *
@@ -115,6 +119,9 @@ final public class InstanceContentEvent implements ContentEvent {
 	 */
 	public boolean isTesting(){
 		return isTesting;
+	}
+	public void setTesting(boolean testing) {
+		this.isTesting = testing;
 	}
 
 	/**

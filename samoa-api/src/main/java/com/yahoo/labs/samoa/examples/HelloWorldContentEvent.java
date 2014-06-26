@@ -23,8 +23,8 @@ package com.yahoo.labs.samoa.examples;
 import com.yahoo.labs.samoa.core.ContentEvent;
 
 /**
- * Example {@link ContentEvent} that contains a single integer.
- */
+* Example {@link ContentEvent} that contains a single integer.
+*/
 public class HelloWorldContentEvent implements ContentEvent {
 
     private static final long serialVersionUID = -2406968925730298156L;

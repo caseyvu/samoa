@@ -20,7 +20,6 @@ package com.yahoo.labs.samoa.evaluation;
  * #L%
  */
 
-import com.yahoo.labs.samoa.instances.Instance;
 import com.yahoo.labs.samoa.moa.MOAObject;
 import com.yahoo.labs.samoa.moa.core.Measurement;
 
@@ -46,7 +45,8 @@ public interface PerformanceEvaluator extends MOAObject {
 	 *            the test instance in each class
 	 * @return an array of measurements monitored in this evaluator
 	 */
-	public void addResult(Instance inst, double[] classVotes);
+	//public void addResult(Instance inst, double[] classVotes);
+	public void addResult(double classValue, double weight, int numClasses, double[] classVotes);
 
 	/**
 	 * Gets the current measurements monitored by this evaluator.

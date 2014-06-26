@@ -20,12 +20,15 @@ package com.yahoo.labs.samoa.learners;
  * #L%
  */
 
+import java.util.List;
+
 import com.yahoo.labs.samoa.learners.Learner;
+import com.yahoo.labs.samoa.topology.Stream;
 
 /**
  * @author Anh Thu Vu
  *
  */
 public interface RegressionLearner extends Learner {
-
+	public List<Stream> getResultStreams();
 }

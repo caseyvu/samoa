@@ -39,13 +39,11 @@ public class RulePassiveRegressionNode extends RuleRegressionNode implements Rul
 	}
 	
 	public RulePassiveRegressionNode(RuleRegressionNode activeLearningNode) {
-		this.changeDetection = activeLearningNode.changeDetection;
-		this.pageHinckleyTest = activeLearningNode.pageHinckleyTest.getACopy();
 		this.predictionFunction = activeLearningNode.predictionFunction;
 		this.ruleNumberID = activeLearningNode.ruleNumberID;
 		this.nodeStatistics = new DoubleVector(activeLearningNode.nodeStatistics);
 		this.learningRatio = activeLearningNode.learningRatio;
-		this.perceptron = new Perceptron(activeLearningNode.perceptron);
+		this.perceptron = new Perceptron(activeLearningNode.perceptron, true);
 		this.targetMean = new TargetMean(activeLearningNode.targetMean);
 	}
 	

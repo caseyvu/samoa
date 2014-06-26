@@ -1,4 +1,4 @@
-package com.yahoo.labs.samoa.learners.classifiers.rules.distributed1;
+package com.yahoo.labs.samoa.learners.classifiers.rules.distributed;
 
 /*
  * #%L
@@ -21,30 +21,27 @@ package com.yahoo.labs.samoa.learners.classifiers.rules.distributed1;
  */
 
 import com.yahoo.labs.samoa.core.ContentEvent;
-import com.yahoo.labs.samoa.learners.classifiers.rules.common.ActiveRule;
+import com.yahoo.labs.samoa.instances.Instance;
 
-public class RuleContentEvent implements ContentEvent {
+public class AssignmentContentEvent implements ContentEvent {
 
-	
 	/**
 	 * 
 	 */
-	private static final long serialVersionUID = -9046390274402894461L;
-	
-	private final int ruleNumberID;
-	private final ActiveRule addingRule; // for removing rule, we only need the rule's ID
-	private final boolean isRemoving;
-	
-	public RuleContentEvent() {
-		this(0, null, false);
-	}
-	
-	public RuleContentEvent(int ruleID, ActiveRule rule, boolean isRemoving) {
-		this.ruleNumberID = ruleID;
-		this.isRemoving = isRemoving;
-		this.addingRule = rule;
-	}
+	private static final long serialVersionUID = 1031695762172836629L;
 
+	private int ruleNumberID;
+	private Instance instance;
+	
+	public AssignmentContentEvent() {
+		this(0, null);
+	}
+	
+	public AssignmentContentEvent(int ruleID, Instance instance) {
+		this.ruleNumberID = ruleID;
+		this.instance = instance;
+	}
+	
 	@Override
 	public String getKey() {
 		return Integer.toString(this.ruleNumberID);
@@ -60,16 +57,12 @@ public class RuleContentEvent implements ContentEvent {
 		return false;
 	}
 	
+	public Instance getInstance() {
+		return this.instance;
+	}
+	
 	public int getRuleNumberID() {
 		return this.ruleNumberID;
-	}
-	
-	public ActiveRule getRule() {
-		return this.addingRule;
-	}
-	
-	public boolean isRemoving() {
-		return this.isRemoving;
 	}
 
 }

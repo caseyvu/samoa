@@ -84,7 +84,9 @@ public class PrequentialEvaluation implements Task, Configurable {
     public FileOption dumpFileOption = new FileOption("dumpFile", 'd', "File to append intermediate csv results to", null, "csv", true);
 
     // Default=0: no delay/waiting
-    public IntOption sourceDelayOption = new IntOption("sourceDelay", 'w', "How many miliseconds between injections of two instances.", 0, 0, Integer.MAX_VALUE);
+    public IntOption sourceDelayOption = new IntOption("sourceDelay", 'w', "How many miliseconds between injections of two batches of instances.", 0, 0, Integer.MAX_VALUE);
+    // Default=1: no batching
+    public IntOption sourceBatchSizeOption = new IntOption("sourceBatchSize", 'b', "How many instances in one input batch.", 1, 0, Integer.MAX_VALUE);
     
     private PrequentialSourceProcessor preqSource;
 
@@ -130,6 +132,7 @@ public class PrequentialEvaluation implements Task, Configurable {
         preqSource.setStreamSource((InstanceStream) this.streamTrainOption.getValue());
         preqSource.setMaxNumInstances(instanceLimitOption.getValue());
         preqSource.setSourceDelay(sourceDelayOption.getValue());
+        preqSource.setSourceBatchSize(sourceBatchSizeOption.getValue());
         builder.addEntranceProcessor(preqSource);
         logger.debug("Sucessfully instantiating PrequentialSourceProcessor");
 
@@ -138,6 +141,7 @@ public class PrequentialEvaluation implements Task, Configurable {
         // sourcePiOutputStream = builder.createStream(sourcePi);
 
         sourcePiOutputStream = builder.createStream(preqSource);
+        sourcePiOutputStream.setBatchSize(200);
         // preqStarter.setInputStream(sourcePiOutputStream);
 
         // instantiate classifier and connect it to sourcePiOutputStream
@@ -157,8 +161,16 @@ public class PrequentialEvaluation implements Task, Configurable {
         // evaluatorPi = builder.createPi(evaluator);
         // evaluatorPi.connectInputShuffleStream(evaluatorPiInputStream);
         builder.addProcessor(evaluator);
-        builder.connectInputShuffleStream(evaluatorPiInputStream, evaluator);
-
+        
+        if (learner instanceof RegressionLearner) {
+        	RegressionLearner regressionLearner = (RegressionLearner) learner;
+        	for (Stream resultStream:regressionLearner.getResultStreams()) {
+        		builder.connectInputShuffleStream(resultStream, evaluator);
+        	}
+        }
+        else {
+        	builder.connectInputShuffleStream(evaluatorPiInputStream, evaluator);
+        }
         logger.debug("Sucessfully instantiating EvaluatorProcessor");
 
         prequentialTopology = builder.build();

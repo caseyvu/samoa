@@ -48,8 +48,15 @@ cd $base_dir
 base_dir=`pwd`
 cd $home_dir
 
-YARN_HOME="${YARN_HOME:-$HOME/.samza}"
+YARN_HOME=/home/anhthuvu/.samza
 CLASSPATH=$base_dir:$YARN_HOME/conf
+
+echo "HOME is"
+echo $HOME
+echo "YARN_HOME is"
+echo $YARN_HOME
+echo "CLASSPATH is"
+echo $CLASSPATH
 
 if [ -z "$JAVA_HOME" ]; then
   JAVA="java"

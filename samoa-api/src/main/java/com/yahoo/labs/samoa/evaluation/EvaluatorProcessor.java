@@ -79,9 +79,10 @@ public class EvaluatorProcessor implements Processor {
 		if((totalCount > 0) && (totalCount % samplingFrequency) == 0){
 			long sampleEnd = System.nanoTime();
 			long sampleDuration = TimeUnit.SECONDS.convert(sampleEnd - sampleStart, TimeUnit.NANOSECONDS);
+			long totalDuration = TimeUnit.SECONDS.convert(sampleEnd - experimentStart, TimeUnit.NANOSECONDS);
 			sampleStart = sampleEnd;
 			
-			logger.info("{} seconds for {} instances", sampleDuration, samplingFrequency);
+			logger.info("{} seconds for {} instances, total {} seconds", sampleDuration, samplingFrequency, totalDuration);
 			this.addMeasurement();
 		}
 		
@@ -90,7 +91,8 @@ public class EvaluatorProcessor implements Processor {
 			return true;
 		}
 		
-		evaluator.addResult(result.getInstance(), result.getClassVotes());
+		//evaluator.addResult(result.getInstance(), result.getClassVotes());
+		evaluator.addResult(result.getClassValue(), result.getWeight(), result.getNumClasses(), result.getClassVotes());
 		totalCount += 1;
 		
 		if(totalCount == 1){

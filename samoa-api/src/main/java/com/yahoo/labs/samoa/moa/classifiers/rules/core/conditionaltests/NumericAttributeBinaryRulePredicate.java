@@ -69,6 +69,10 @@ public class NumericAttributeBinaryRulePredicate extends InstanceConditionalBina
         this.attValue = attValue;
         this.operator = operator;
     }
+    
+    public NumericAttributeBinaryRulePredicate(NumericAttributeBinaryRulePredicate oldTest) {
+    	this(oldTest.attIndex, oldTest.attValue, oldTest.operator);
+    }
 
     @Override
     public int branchForInstance(Instance inst) {

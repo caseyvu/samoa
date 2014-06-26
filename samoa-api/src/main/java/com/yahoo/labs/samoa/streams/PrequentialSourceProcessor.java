@@ -67,6 +67,7 @@ public final class PrequentialSourceProcessor implements EntranceProcessor {
 	private transient ScheduledFuture<?> schedule = null;
 	private int readyEventIndex = 1; // No waiting for the first event
 	private int delay = 0;
+	private int batchSize = 1;
 
     @Override
     public boolean process(ContentEvent event) {
@@ -106,7 +107,7 @@ public final class PrequentialSourceProcessor implements EntranceProcessor {
     }
     
 	private void increaseReadyEventIndex() {
-		readyEventIndex++;
+		readyEventIndex += batchSize;
 		// if we exceed the max, cancel the timer
 		if (schedule != null && isFinished()) {
 			schedule.cancel(false);
@@ -203,6 +204,14 @@ public final class PrequentialSourceProcessor implements EntranceProcessor {
 
 	public int getSourceDelay() {
 		return this.delay;
+	}
+	
+	public void setSourceBatchSize(int batchSize) {
+		this.batchSize = batchSize;
+	}
+
+	public int getSourceBatchSize() {
+		return this.batchSize;
 	}
 	
 	private class DelayTimeoutHandler implements Runnable {

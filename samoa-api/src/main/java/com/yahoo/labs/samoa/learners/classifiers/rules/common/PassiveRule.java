@@ -1,5 +1,10 @@
 package com.yahoo.labs.samoa.learners.classifiers.rules.common;
 
+import java.util.LinkedList;
+
+import com.yahoo.labs.samoa.moa.classifiers.core.conditionaltests.InstanceConditionalTest;
+import com.yahoo.labs.samoa.moa.classifiers.rules.core.conditionaltests.NumericAttributeBinaryRulePredicate;
+
 /*
  * #%L
  * SAMOA
@@ -33,7 +38,11 @@ public class PassiveRule extends LearningRule {
 	 * Constructor to turn an ActiveRule into a PassiveRule
 	 */
 	public PassiveRule(ActiveRule rule) {
-		this.nodeList = rule.nodeList;
+		this.nodeList = new LinkedList<RuleSplitNode>();
+		for (RuleSplitNode node:rule.nodeList) {
+			this.nodeList.add(node.getACopy());
+		}
+		
 		this.learningNode = new RulePassiveRegressionNode(rule.getLearningNode());
 		this.ruleNumberID = rule.ruleNumberID;
 	}

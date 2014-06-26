@@ -52,6 +52,7 @@ public class SamzaEngine {
 	
 	private String zookeeper;
 	private String kafka;
+	private int kafkaReplicationFactor;
 	private int kafkaBatchSize;
 	private String kafkaProducerType;
 	private boolean isLocalMode;
@@ -113,6 +114,7 @@ public class SamzaEngine {
 		if (!isLocalMode)
 			SystemsUtils.setHadoopConfigHome(yarnConfHome);
 		SystemsUtils.setZookeeper(zookeeper);
+		SystemsUtils.setKafkaReplicationfactor(this.kafkaReplicationFactor);
 	}
 	
 	/*
@@ -129,6 +131,11 @@ public class SamzaEngine {
 	
 	public SamzaEngine setKafka(String kafka) {
 		this.kafka = kafka;
+		return this;
+	}
+	
+	public SamzaEngine setKafkaReplicationFactor(int factor) {
+		this.kafkaReplicationFactor = factor;
 		return this;
 	}
 	

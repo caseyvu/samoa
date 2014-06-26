@@ -20,6 +20,9 @@ package com.yahoo.labs.samoa.learners.classifiers.rules;
  * #L%
  */
 
+import java.util.ArrayList;
+import java.util.List;
+
 import com.github.javacliparser.ClassOption;
 import com.github.javacliparser.Configurable;
 import com.github.javacliparser.FlagOption;
@@ -29,14 +32,14 @@ import com.github.javacliparser.MultiChoiceOption;
 import com.yahoo.labs.samoa.core.Processor;
 import com.yahoo.labs.samoa.instances.Instances;
 import com.yahoo.labs.samoa.learners.RegressionLearner;
-import com.yahoo.labs.samoa.learners.classifiers.rules.distributed1.AMRulesAggregatorProcessor;
-import com.yahoo.labs.samoa.learners.classifiers.rules.distributed1.AMRulesStatisticsProcessor;
+import com.yahoo.labs.samoa.learners.classifiers.rules.distributed.AMRulesAggregatorProcessor;
+import com.yahoo.labs.samoa.learners.classifiers.rules.distributed.AMRulesStatisticsProcessor;
 import com.yahoo.labs.samoa.moa.classifiers.rules.core.attributeclassobservers.FIMTDDNumericAttributeClassLimitObserver;
 import com.yahoo.labs.samoa.moa.classifiers.rules.core.voting.ErrorWeightedVote;
 import com.yahoo.labs.samoa.topology.Stream;
 import com.yahoo.labs.samoa.topology.TopologyBuilder;
 
-public class DistributedAMRulesRegressor1 implements RegressionLearner, Configurable {
+public class VerticalAMRulesRegressor implements RegressionLearner, Configurable {
 
 	/**
 	 * 
@@ -65,13 +68,13 @@ public class DistributedAMRulesRegressor1 implements RegressionLearner, Configur
 			"pageHinckleyAlpha",
 			'a',
 			"The alpha value to use in the Page Hinckley change detection tests.",
-			0.5, 0.0, 1.0);
+			00.005, 0.0, 1.0);
 
 	public IntOption pageHinckleyThresholdOption = new IntOption(
 			"pageHinckleyThreshold",
 			'l',
 			"The threshold value (Lambda) to be used in the Page Hinckley change detection tests.",
-			50, 0, Integer.MAX_VALUE);
+			35, 0, Integer.MAX_VALUE);
 
 	public FlagOption noAnomalyDetectionOption = new FlagOption("noAnomalyDetection", 'A',
 			"Disable anomaly Detection.");
@@ -115,17 +118,17 @@ public class DistributedAMRulesRegressor1 implements RegressionLearner, Configur
 			"learningRatio", 's', 
 			"Constante Learning Ratio to use for training the Perceptrons in the leaves.", 0.025);
 
-	public ClassOption votingTypeOption = new ClassOption("votingType",
-			'V', "Voting Type.", 
-			ErrorWeightedVote.class,
-			"InverseErrorWeightedVote");
+	public MultiChoiceOption votingTypeOption = new MultiChoiceOption(
+			"votingType", 'V', "Voting Type.", new String[]{
+					"InverseErrorWeightedVote","UniformWeightedVote"}, new String[]{
+					"InverseErrorWeightedVote","UniformWeightedVote"}, 0);
 	
 	public IntOption parallelismHintOption = new IntOption(
             "parallelismHint",
             'p',
             "The number of local statistics PI to do distributed computation",
             1, 1, Integer.MAX_VALUE);
-
+	
 	// Processor
 	private AMRulesAggregatorProcessor aggregator;
 	private AMRulesStatisticsProcessor learner;
@@ -157,13 +160,15 @@ public class DistributedAMRulesRegressor1 implements RegressionLearner, Configur
 		.anomalyNumberOfInstancesThreshold(anomalyNumInstThresholdOption.getValue())
 		.unorderedRules(unorderedRulesOption.isSet())
 		.numericObserver((FIMTDDNumericAttributeClassLimitObserver)numericObserverOption.getValue())
-		.voteType((ErrorWeightedVote)votingTypeOption.getValue())
+		.voteType(votingTypeOption.getChosenIndex())
 		.build();
 
 		topologyBuilder.addProcessor(aggregator);
 
 		this.statisticsStream = topologyBuilder.createStream(aggregator);
+		this.statisticsStream.setBatchSize(100);
 		this.resultStream = topologyBuilder.createStream(aggregator);
+		this.resultStream.setBatchSize(200);
 		
 		this.aggregator.setResultStream(resultStream);
 		this.aggregator.setStatisticsStream(statisticsStream);
@@ -179,6 +184,7 @@ public class DistributedAMRulesRegressor1 implements RegressionLearner, Configur
 		topologyBuilder.connectInputKeyStream(this.statisticsStream, learner);
     
 		this.predicateStream = topologyBuilder.createStream(learner);
+		this.predicateStream.setBatchSize(1);
 		this.learner.setOutputStream(predicateStream);
     
 		topologyBuilder.connectInputShuffleStream(this.predicateStream, aggregator);
@@ -192,6 +198,13 @@ public class DistributedAMRulesRegressor1 implements RegressionLearner, Configur
 	@Override
 	public Stream getResultStream() {
 		return resultStream;
+	}
+	
+	@Override
+	public List<Stream> getResultStreams() {
+		List<Stream> list = new ArrayList<Stream>();
+		list.add(resultStream);
+		return list;
 	}
 
 }

@@ -90,6 +90,10 @@ public class Perceptron extends AbstractClassifier implements Regressor {
 	 * Perceptron
 	 */
 	public Perceptron(Perceptron p) {
+		this(p,false);
+	}
+	
+	public Perceptron(Perceptron p, boolean copyAccumulatedError) {
 		super();
 		//		this.constantLearningRatioDecayOption = p.constantLearningRatioDecayOption;
 		//        this.learningRatioOption = p.learningRatioOption;
@@ -97,6 +101,8 @@ public class Perceptron extends AbstractClassifier implements Regressor {
 		//        this.fadingFactorOption = p.fadingFactorOption;
 		this.constantLearningRatioDecay = p.constantLearningRatioDecay;
 		this.originalLearningRatio = p.originalLearningRatio;
+		if (copyAccumulatedError)
+			this.accumulatedError = p.accumulatedError;
 		this.nError = p.nError;
 		this.fadingFactor = p.fadingFactor;
 		this.learningRatio = p.learningRatio;

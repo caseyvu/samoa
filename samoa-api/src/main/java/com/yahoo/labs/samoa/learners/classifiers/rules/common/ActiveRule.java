@@ -38,7 +38,6 @@ public class ActiveRule extends LearningRule {
 	private RuleActiveRegressionNode learningNode;
 	
 	private RuleSplitNode lastUpdatedRuleSplitNode;
-	private boolean lastUpdatedRuleSplitNodeIsNew;
 	
 	/*
 	 * Constructor with Builder
@@ -88,9 +87,6 @@ public class ActiveRule extends LearningRule {
 	
 	public RuleSplitNode getLastUpdatedRuleSplitNode() {
 		return this.lastUpdatedRuleSplitNode;
-	}
-	public boolean lastUpdatedRuleSplitNodeIsNew() {
-		return this.lastUpdatedRuleSplitNodeIsNew;
 	}
 
 	/*
@@ -194,8 +190,7 @@ public class ActiveRule extends LearningRule {
 					splitTest.getAttsTestDependsOn()[0], splitTest.getSplitValue(),
 					splitIndex + 1);
 			lastUpdatedRuleSplitNode = new RuleSplitNode(predicate, this.learningNode.getStatisticsBranchSplit() );
-			lastUpdatedRuleSplitNodeIsNew = this.nodeListAdd(lastUpdatedRuleSplitNode);
-			if (lastUpdatedRuleSplitNodeIsNew) {
+			if (this.nodeListAdd(lastUpdatedRuleSplitNode)) {
 				// create a new learning node
 				RuleActiveRegressionNode newLearningNode = newRuleActiveLearningNode(this.getBuilder().statistics(this.learningNode.getStatisticsNewRuleActiveLearningNode())); 
 				newLearningNode.initialize(this.learningNode);

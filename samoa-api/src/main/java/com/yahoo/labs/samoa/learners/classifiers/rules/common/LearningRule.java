@@ -59,9 +59,6 @@ public abstract class LearningRule extends Rule {
 		return this.getLearningNode().computeError(instance);
 	}
 
-	public boolean updatePageHinckleyTest(double error) {
-		return this.getLearningNode().updatePageHinckleyTest(error);
-	}
 
 	/*
 	 * Prediction

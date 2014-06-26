@@ -32,21 +32,21 @@ import com.yahoo.labs.samoa.instances.Instance;
 /**
  * The Class ResultEvent.
  */
-final public class ResultContentEvent implements ContentEvent {
+public class ResultContentEvent implements ContentEvent {
 
 	/**
 	 * 
 	 */
 	private static final long serialVersionUID = -2650420235386873306L;
-	private long instanceIndex;
+	protected long instanceIndex;
 	private int classifierIndex;
 	private int evaluationIndex;
 	private SerializableInstance instance;
 	
-	private int classId; 
-	private double[] classVotes;
+	protected int classId; 
+	protected double[] classVotes;
 	
-	private final boolean isLast;
+	protected boolean isLast;
 	
 	public ResultContentEvent(){
 		this.isLast = false;
@@ -207,6 +207,17 @@ final public class ResultContentEvent implements ContentEvent {
 	@Override
 	public boolean isLastEvent() {
 		return isLast;
+	}
+	
+	
+	
+	// New methods
+	public double getClassValue() {
+		return this.instance.classValue();
+	}
+	
+	public double getWeight() {
+		return this.instance.weight();
 	}
 
 }

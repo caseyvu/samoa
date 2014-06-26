@@ -1,4 +1,4 @@
-package com.yahoo.labs.samoa.learners.classifiers.rules.distributed2;
+package com.yahoo.labs.samoa.learners.classifiers.rules.distributed;
 
 /*
  * #%L
@@ -24,25 +24,37 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.yahoo.labs.samoa.core.ContentEvent;
 import com.yahoo.labs.samoa.core.Processor;
 import com.yahoo.labs.samoa.instances.Instance;
 import com.yahoo.labs.samoa.instances.Instances;
 import com.yahoo.labs.samoa.learners.classifiers.rules.common.ActiveRule;
+import com.yahoo.labs.samoa.learners.classifiers.rules.common.LearningRule;
 import com.yahoo.labs.samoa.learners.classifiers.rules.common.RuleActiveRegressionNode;
+import com.yahoo.labs.samoa.learners.classifiers.rules.common.RulePassiveRegressionNode;
 import com.yahoo.labs.samoa.learners.classifiers.rules.common.RuleSplitNode;
 import com.yahoo.labs.samoa.topology.Stream;
 
-public class AMRulesStatisticsProcessor implements Processor {
-
+/**
+ * @author Anh Thu Vu
+ *
+ */
+public class AMRLearnerProcessor implements Processor {
+	
 	/**
 	 * 
 	 */
-	private static final long serialVersionUID = -4342286729992707581L;
+	private static final long serialVersionUID = -2302897295090248013L;
+	
+	private static final Logger logger = 
+			LoggerFactory.getLogger(AMRLearnerProcessor.class);
 
 	private int processorId;
 	
-	private List<ActiveRule> ruleSet;
+	private transient List<ActiveRule> ruleSet;
 	
 	private Stream outputStream;
 	
@@ -50,103 +62,77 @@ public class AMRulesStatisticsProcessor implements Processor {
 	private double tieThreshold;
 	private int gracePeriod;
 	
-	protected boolean noAnomalyDetection;
-	protected double multivariateAnomalyProbabilityThreshold;
-	protected double univariateAnomalyprobabilityThreshold;
-	protected int anomalyNumInstThreshold;
+	private boolean noAnomalyDetection;
+	private double multivariateAnomalyProbabilityThreshold;
+	private double univariateAnomalyprobabilityThreshold;
+	private int anomalyNumInstThreshold;
 	
-	public AMRulesStatisticsProcessor(Builder builder) {
+	public AMRLearnerProcessor(Builder builder) {
 		this.splitConfidence = builder.splitConfidence;
 		this.tieThreshold = builder.tieThreshold;
 		this.gracePeriod = builder.gracePeriod;
+		
 		this.noAnomalyDetection = builder.noAnomalyDetection;
 		this.multivariateAnomalyProbabilityThreshold = builder.multivariateAnomalyProbabilityThreshold;
 		this.univariateAnomalyprobabilityThreshold = builder.univariateAnomalyprobabilityThreshold;
 		this.anomalyNumInstThreshold = builder.anomalyNumInstThreshold;
 	}
-	
-	
+
 	@Override
 	public boolean process(ContentEvent event) {
 		if (event instanceof AssignmentContentEvent) {
-			AssignmentContentEvent ace = (AssignmentContentEvent) event;
-			if (ace.isTesting()) {
-				// Prediction
-				this.predictOnInstance(ace);
-			}
-			if (ace.isTraining()) {
-				// Training
-				this.trainRuleWithInstance(ace.getRuleNumberID(), ace.getInstance());
-			}
+			AssignmentContentEvent attrContentEvent = (AssignmentContentEvent) event;
+			trainRuleOnInstance(attrContentEvent.getRuleNumberID(),attrContentEvent.getInstance());
 		}
 		else if (event instanceof RuleContentEvent) {
-			RuleContentEvent rce = (RuleContentEvent) event;
-			if (!rce.isRemoving()) { // Remove rule is not applicable
-				this.addRule(rce.getRule());
+			RuleContentEvent ruleContentEvent = (RuleContentEvent) event;
+			if (!ruleContentEvent.isRemoving()) {
+				addRule(ruleContentEvent.getRule());
 			}
 		}
+		
 		return false;
 	}
 	
 	/*
-	 * Prediction
+	 * Process input instances
 	 */
-	private void predictOnInstance(AssignmentContentEvent ace) {
-		int ruleID = ace.getRuleNumberID();
-		Instance instance = ace.getInstance();
-		for (ActiveRule rule: ruleSet) {
+	private void trainRuleOnInstance(int ruleID, Instance instance) {
+        //System.out.println("Processor:"+this.processorId+": Rule:"+ruleID+" -> Counter="+counter);
+		Iterator<ActiveRule> ruleIterator= this.ruleSet.iterator();
+		while (ruleIterator.hasNext()) {
+			ActiveRule rule = ruleIterator.next();
 			if (rule.getRuleNumberID() == ruleID) {
-				double [] vote=rule.getPrediction(instance);
-				double error= rule.getCurrentError();
+				// Check (again) for coverage
+				if (rule.isCovering(instance) == true) {
+					double error = rule.computeError(instance); //Use adaptive mode error
+                    boolean changeDetected = ((RuleActiveRegressionNode)rule.getLearningNode()).updateChangeDetection(error);
+                    if (changeDetected == true) {
+                            ruleIterator.remove();
+                            
+                            this.sendRemoveRuleEvent(ruleID);
+                    } else {
+                    	rule.updateStatistics(instance);
+                    	if (rule.getInstancesSeen()  % this.gracePeriod == 0.0) {
+                    		if (rule.tryToExpand(this.splitConfidence, this.tieThreshold) ) {
+                    			rule.split();
+                    			
+                    			// expanded: update Aggregator with new/updated predicate
+                    			this.sendPredicate(rule.getRuleNumberID(), rule.getLastUpdatedRuleSplitNode(), 
+        								(RuleActiveRegressionNode)rule.getLearningNode());
+                    		}	
+                    		
+                    	}
+                    	
+                    }
+				}
 				
-				// Send prediction
-				this.sendPrediction(ace.getInstanceIndex(), vote, error, ruleID);
 				return;
 			}
 		}
 	}
 	
-	/*
-	 * Training
-	 */
-	private void trainRuleWithInstance(int ruleID, Instance instance) {
-		Iterator<ActiveRule> ruleIterator= this.ruleSet.iterator();
-		while (ruleIterator.hasNext()) { 
-			ActiveRule rule = ruleIterator.next();
-			if (rule.getRuleNumberID() == ruleID) {
-				// check for coverage again
-				if (rule.isCovering(instance) && isAnomaly(instance, rule) == false) {
-					//Update Change Detection Tests
-					double error = rule.computeError(instance); //Use adaptive mode error
-					boolean changeDetected = rule.getLearningNode().updateChangeDetection(error);
-					if (changeDetected == true) {
-						ruleIterator.remove();
-						// send event
-						this.sendRemoveRuleEvent(ruleID);
-					} else {
-						rule.updateStatistics(instance);
-						if (rule.getInstancesSeen()  % this.gracePeriod == 0.0) {
-							if (rule.tryToExpand(this.splitConfidence, this.tieThreshold) ) {
-								rule.split();
-								// expanded: update Aggregator with new/updated predicate
-								this.sendPredicate(rule.getRuleNumberID(), rule.getLastUpdatedRuleSplitNode(), 
-										(RuleActiveRegressionNode)rule.getLearningNode(), rule.lastUpdatedRuleSplitNodeIsNew());
-							}	
-						}
-					}
-				}
-				return;
-			}
-		}	
-	}
-	
-	/**
-	 * Method to verify if the instance is an anomaly.
-	 * @param instance
-	 * @param rule
-	 * @return
-	 */
-	private boolean isAnomaly(Instance instance, ActiveRule rule) {
+	private boolean isAnomaly(Instance instance, LearningRule rule) {
 		//AMRUles is equipped with anomaly detection. If on, compute the anomaly value. 			
 		boolean isAnomaly = false;	
 		if (this.noAnomalyDetection == false){
@@ -160,29 +146,21 @@ public class AMRulesStatisticsProcessor implements Processor {
 		return isAnomaly;
 	}
 	
-	/*
-	 * Add rule
-	 */
-	private boolean addRule(ActiveRule rule) {
-		this.ruleSet.add(rule);
-		return true;
-	}
-	
-	/*
-	 * Send events
-	 */
-	private void sendPrediction(long instanceIndex, double[] prediction, double error, int ruleID) {
-		PredictionContentEvent pce = new PredictionContentEvent(instanceIndex, prediction, error, ruleID);
-		this.outputStream.put(pce);
-	}
-	
 	private void sendRemoveRuleEvent(int ruleID) {
 		RuleContentEvent rce = new RuleContentEvent(ruleID, null, true);
 		this.outputStream.put(rce);
 	}
 	
-	private void sendPredicate(int ruleID, RuleSplitNode splitNode, RuleActiveRegressionNode learningNode, boolean isNew) {
-		this.outputStream.put(new PredicateContentEvent(ruleID, splitNode, isNew));
+	private void sendPredicate(int ruleID, RuleSplitNode splitNode, RuleActiveRegressionNode learningNode) {
+		this.outputStream.put(new PredicateContentEvent(ruleID, splitNode, new RulePassiveRegressionNode(learningNode)));
+	}
+	
+	/*
+	 * Process control message (regarding adding or removing rules)
+	 */
+	private boolean addRule(ActiveRule rule) {
+		this.ruleSet.add(rule);
+		return true;
 	}
 
 	@Override
@@ -193,9 +171,9 @@ public class AMRulesStatisticsProcessor implements Processor {
 
 	@Override
 	public Processor newProcessor(Processor p) {
-		AMRulesStatisticsProcessor oldProcessor = (AMRulesStatisticsProcessor)p;
-		AMRulesStatisticsProcessor newProcessor = 
-					new AMRulesStatisticsProcessor.Builder(oldProcessor).build();
+		AMRLearnerProcessor oldProcessor = (AMRLearnerProcessor)p;
+		AMRLearnerProcessor newProcessor = 
+					new AMRLearnerProcessor.Builder(oldProcessor).build();
 			
 		newProcessor.setOutputStream(oldProcessor.outputStream);
 		return newProcessor;
@@ -213,22 +191,17 @@ public class AMRulesStatisticsProcessor implements Processor {
 		private double multivariateAnomalyProbabilityThreshold;
 		private double univariateAnomalyprobabilityThreshold;
 		private int anomalyNumInstThreshold;
-
+		
 		private Instances dataset;
 		
 		public Builder(Instances dataset){
 			this.dataset = dataset;
 		}
 		
-		public Builder(AMRulesStatisticsProcessor processor) {
+		public Builder(AMRLearnerProcessor processor) {
 			this.splitConfidence = processor.splitConfidence;
 			this.tieThreshold = processor.tieThreshold;
 			this.gracePeriod = processor.gracePeriod;
-			
-			this.noAnomalyDetection = processor.noAnomalyDetection;
-			this.multivariateAnomalyProbabilityThreshold = processor.multivariateAnomalyProbabilityThreshold;
-			this.univariateAnomalyprobabilityThreshold = processor.univariateAnomalyprobabilityThreshold;
-			this.anomalyNumInstThreshold = processor.anomalyNumInstThreshold;
 		}
 		
 		public Builder splitConfidence(double splitConfidence) {
@@ -266,8 +239,8 @@ public class AMRulesStatisticsProcessor implements Processor {
 			return this;
 		}
 		
-		public AMRulesStatisticsProcessor build() {
-			return new AMRulesStatisticsProcessor(this);
+		public AMRLearnerProcessor build() {
+			return new AMRLearnerProcessor(this);
 		}
 	}
 	
@@ -281,5 +254,4 @@ public class AMRulesStatisticsProcessor implements Processor {
 	public Stream getOutputStream() {
 		return this.outputStream;
 	}
-
 }

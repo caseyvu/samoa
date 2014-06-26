@@ -61,6 +61,8 @@ public class SystemsUtils {
 	private static final String TEMP_FILE = "samoaTemp";
 	private static final String TEMP_FILE_SUFFIX = ".dat";
 	
+	private static int streamReplicas;
+	
 	/*
 	 * Kafka
 	 */
@@ -265,7 +267,7 @@ public class SystemsUtils {
 	 * Create streams
 	 */
 	public static void createKafkaTopic(String name, int partitions) {
-		createKafkaTopic(name, partitions, 1);
+		createKafkaTopic(name, partitions, streamReplicas);
 	}
 	
 	public static void createKafkaTopic(String name, int partitions, int replicas) {
@@ -323,6 +325,10 @@ public class SystemsUtils {
 	
 	public static void setHadoopConfigHome(String hadoopHome) {
 		HDFSUtils.setHadoopConfigHome(hadoopHome);
+	}
+	
+	public static void setKafkaReplicationfactor(int replicationFactor) {
+		streamReplicas = replicationFactor;
 	}
 	
 	/*

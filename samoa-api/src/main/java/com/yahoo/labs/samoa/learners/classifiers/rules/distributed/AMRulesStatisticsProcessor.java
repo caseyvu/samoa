@@ -1,4 +1,4 @@
-package com.yahoo.labs.samoa.learners.classifiers.rules.distributed1;
+package com.yahoo.labs.samoa.learners.classifiers.rules.distributed;
 
 /*
  * #%L
@@ -24,12 +24,14 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.yahoo.labs.samoa.core.ContentEvent;
 import com.yahoo.labs.samoa.core.Processor;
 import com.yahoo.labs.samoa.instances.Instance;
 import com.yahoo.labs.samoa.instances.Instances;
 import com.yahoo.labs.samoa.learners.classifiers.rules.common.ActiveRule;
-import com.yahoo.labs.samoa.learners.classifiers.rules.common.LearningRule;
 import com.yahoo.labs.samoa.learners.classifiers.rules.common.RuleActiveRegressionNode;
 import com.yahoo.labs.samoa.learners.classifiers.rules.common.RulePassiveRegressionNode;
 import com.yahoo.labs.samoa.learners.classifiers.rules.common.RuleSplitNode;
@@ -42,9 +44,12 @@ public class AMRulesStatisticsProcessor implements Processor {
 	 */
 	private static final long serialVersionUID = 5268933189695395573L;
 	
+	private static final Logger logger = 
+			LoggerFactory.getLogger(AMRulesStatisticsProcessor.class);
+	
 	private int processorId;
 	
-	private List<ActiveRule> ruleSet;
+	private transient List<ActiveRule> ruleSet;
 	
 	private Stream outputStream;
 	
@@ -52,24 +57,25 @@ public class AMRulesStatisticsProcessor implements Processor {
 	private double tieThreshold;
 	private int gracePeriod;
 	
+	private int frequency;
+	
 	public AMRulesStatisticsProcessor(Builder builder) {
 		this.splitConfidence = builder.splitConfidence;
 		this.tieThreshold = builder.tieThreshold;
 		this.gracePeriod = builder.gracePeriod;
+		this.frequency = builder.frequency;
 	}
 
 	@Override
 	public boolean process(ContentEvent event) {
 		if (event instanceof AssignmentContentEvent) {
+						
 			AssignmentContentEvent attrContentEvent = (AssignmentContentEvent) event;
 			trainRuleOnInstance(attrContentEvent.getRuleNumberID(),attrContentEvent.getInstance());
 		}
 		else if (event instanceof RuleContentEvent) {
 			RuleContentEvent ruleContentEvent = (RuleContentEvent) event;
-			if (ruleContentEvent.isRemoving()) {
-				deleteRule(ruleContentEvent.getRuleNumberID());
-			}
-			else {
+			if (!ruleContentEvent.isRemoving()) {
 				addRule(ruleContentEvent.getRule());
 			}
 		}
@@ -81,24 +87,31 @@ public class AMRulesStatisticsProcessor implements Processor {
 	 * Process input instances
 	 */
 	private void trainRuleOnInstance(int ruleID, Instance instance) {
-        //System.out.println("Processor:"+this.processorId+": Rule:"+ruleID+" -> Counter="+counter);
 		Iterator<ActiveRule> ruleIterator= this.ruleSet.iterator();
 		while (ruleIterator.hasNext()) {
 			ActiveRule rule = ruleIterator.next();
 			if (rule.getRuleNumberID() == ruleID) {
 				// Check (again) for coverage
 				// Skip anomaly check as Aggregator's perceptron should be well-updated
-				
 				if (rule.isCovering(instance) == true) {
-					rule.updateStatistics(instance);
-					if (rule.getInstancesSeen()  % this.gracePeriod == 0.0) {
-						if (rule.tryToExpand(this.splitConfidence, this.tieThreshold) ) {
-							rule.split();
-							// expanded: update Aggregator with new/updated predicate
-							this.sendPredicate(rule.getRuleNumberID(), rule.getLastUpdatedRuleSplitNode(), 
-									(RuleActiveRegressionNode)rule.getLearningNode(), rule.lastUpdatedRuleSplitNodeIsNew());
-						}	
-					}
+					double error = rule.computeError(instance); //Use adaptive mode error
+                    boolean changeDetected = ((RuleActiveRegressionNode)rule.getLearningNode()).updateChangeDetection(error);
+                    if (changeDetected == true) {
+                            ruleIterator.remove();
+                            
+                            this.sendRemoveRuleEvent(ruleID);
+                    } else {
+                    	rule.updateStatistics(instance);
+                    	if (rule.getInstancesSeen()  % this.gracePeriod == 0.0) {
+                    		if (rule.tryToExpand(this.splitConfidence, this.tieThreshold) ) {
+                    			rule.split();
+                    			
+                    			// expanded: update Aggregator with new/updated predicate
+                    			this.sendPredicate(rule.getRuleNumberID(), rule.getLastUpdatedRuleSplitNode(), 
+									(RuleActiveRegressionNode)rule.getLearningNode());
+                    		}	
+                    	}
+                    }
 				}
 				
 				return;
@@ -106,8 +119,13 @@ public class AMRulesStatisticsProcessor implements Processor {
 		}
 	}
 	
-	private void sendPredicate(int ruleID, RuleSplitNode splitNode, RuleActiveRegressionNode learningNode, boolean isNew) {
-		this.outputStream.put(new PredicateContentEvent(ruleID, splitNode, new RulePassiveRegressionNode(learningNode), isNew));
+	private void sendRemoveRuleEvent(int ruleID) {
+		RuleContentEvent rce = new RuleContentEvent(ruleID, null, true);
+		this.outputStream.put(rce);
+	}
+	
+	private void sendPredicate(int ruleID, RuleSplitNode splitNode, RuleActiveRegressionNode learningNode) {
+		this.outputStream.put(new PredicateContentEvent(ruleID, splitNode, new RulePassiveRegressionNode(learningNode)));
 	}
 	
 	/*
@@ -116,17 +134,6 @@ public class AMRulesStatisticsProcessor implements Processor {
 	private boolean addRule(ActiveRule rule) {
 		this.ruleSet.add(rule);
 		return true;
-	}
-	private boolean deleteRule(int ruleID) {
-		Iterator<ActiveRule> ruleIterator= this.ruleSet.iterator();
-		while (ruleIterator.hasNext()) {
-			ActiveRule rule = ruleIterator.next();
-			if (rule.getRuleNumberID() == ruleID) {
-				ruleIterator.remove();
-				return true;
-			}
-		}
-		return false;
 	}
 
 	@Override
@@ -153,6 +160,8 @@ public class AMRulesStatisticsProcessor implements Processor {
 		private double tieThreshold;
 		private int gracePeriod;
 		
+		private int frequency;
+		
 		private Instances dataset;
 		
 		public Builder(Instances dataset){
@@ -163,6 +172,7 @@ public class AMRulesStatisticsProcessor implements Processor {
 			this.splitConfidence = processor.splitConfidence;
 			this.tieThreshold = processor.tieThreshold;
 			this.gracePeriod = processor.gracePeriod;
+			this.frequency = processor.frequency;
 		}
 		
 		public Builder splitConfidence(double splitConfidence) {
@@ -177,6 +187,11 @@ public class AMRulesStatisticsProcessor implements Processor {
 		
 		public Builder gracePeriod(int gracePeriod) {
 			this.gracePeriod = gracePeriod;
+			return this;
+		}
+		
+		public Builder frequency(int frequency) {
+			this.frequency = frequency;
 			return this;
 		}
 		

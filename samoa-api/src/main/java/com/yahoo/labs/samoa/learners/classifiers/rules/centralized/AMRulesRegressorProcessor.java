@@ -20,8 +20,6 @@ package com.yahoo.labs.samoa.learners.classifiers.rules.centralized;
  * #L%
  */
 
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -225,7 +223,7 @@ public class AMRulesRegressorProcessor implements Processor {
 				if (isAnomaly(instance, rule) == false) {
 					//Update Change Detection Tests
 					double error = rule.computeError(instance); //Use adaptive mode error
-					boolean changeDetected = rule.getLearningNode().updateChangeDetection(error);
+					boolean changeDetected = ((RuleActiveRegressionNode)rule.getLearningNode()).updateChangeDetection(error);
 					if (changeDetected == true) {
 						ruleIterator.remove();
 					} else {

@@ -1,4 +1,4 @@
-package com.yahoo.labs.samoa.learners.classifiers.rules.distributed2;
+package com.yahoo.labs.samoa.learners.classifiers.rules.distributed;
 
 /*
  * #%L
@@ -25,11 +25,12 @@ import com.yahoo.labs.samoa.learners.classifiers.rules.common.ActiveRule;
 
 public class RuleContentEvent implements ContentEvent {
 
+	
 	/**
 	 * 
 	 */
-	private static final long serialVersionUID = 5532166149813195104L;
-
+	private static final long serialVersionUID = -9046390274402894461L;
+	
 	private final int ruleNumberID;
 	private final ActiveRule addingRule; // for removing rule, we only need the rule's ID
 	private final boolean isRemoving;
@@ -37,6 +38,7 @@ public class RuleContentEvent implements ContentEvent {
 	public RuleContentEvent() {
 		this(0, null, false);
 	}
+	
 	public RuleContentEvent(int ruleID, ActiveRule rule, boolean isRemoving) {
 		this.ruleNumberID = ruleID;
 		this.isRemoving = isRemoving;

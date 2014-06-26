@@ -20,6 +20,9 @@ package com.yahoo.labs.samoa.learners.classifiers.rules;
  * #L%
  */
 
+import java.util.ArrayList;
+import java.util.List;
+
 import com.github.javacliparser.Configurable;
 import com.github.javacliparser.ClassOption;
 import com.github.javacliparser.FlagOption;
@@ -64,13 +67,13 @@ public class AMRulesRegressor implements RegressionLearner, Configurable {
 			"pageHinckleyAlpha",
 			'a',
 			"The alpha value to use in the Page Hinckley change detection tests.",
-			0.5, 0.0, 1.0);
+			0.005, 0.0, 1.0);
 
 	public IntOption pageHinckleyThresholdOption = new IntOption(
 			"pageHinckleyThreshold",
 			'l',
 			"The threshold value (Lambda) to be used in the Page Hinckley change detection tests.",
-			50, 0, Integer.MAX_VALUE);
+			35, 0, Integer.MAX_VALUE);
 
 	public FlagOption noAnomalyDetectionOption = new FlagOption("noAnomalyDetection", 'A',
 			"Disable anomaly Detection.");
@@ -162,4 +165,10 @@ public class AMRulesRegressor implements RegressionLearner, Configurable {
 		return resultStream;
 	}
 
+	@Override
+	public List<Stream> getResultStreams() {
+		List<Stream> list = new ArrayList<Stream>();
+		list.add(resultStream);
+		return list;
+	}
 }

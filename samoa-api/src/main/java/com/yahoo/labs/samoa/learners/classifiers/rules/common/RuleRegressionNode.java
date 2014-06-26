@@ -30,9 +30,7 @@ public abstract class RuleRegressionNode implements Serializable {
 	
 	private static final long serialVersionUID = 9129659494380381126L;
 	
-	protected PageHinkleyTest pageHinckleyTest;
 	protected int predictionFunction;
-	protected boolean changeDetection;
 	protected int ruleNumberID;
 	// The statistics for this node:
 	// Number of instances that have reached it
@@ -43,6 +41,12 @@ public abstract class RuleRegressionNode implements Serializable {
 	protected Perceptron perceptron;
 	protected TargetMean targetMean;
 	protected double learningRatio;
+	
+	public void print() {
+		System.out.println(nodeStatistics);
+		System.out.println(perceptron.getInstancesSeen()+"-"+perceptron.getCurrentError());
+		System.out.println(targetMean.getCurrentError());
+	}
 	
 	/*
 	 * Simple setters & getters
@@ -174,22 +178,6 @@ public abstract class RuleRegressionNode implements Serializable {
 		else
 			error=Double.MAX_VALUE;
 		return error;
-	}
-
-	public boolean updatePageHinckleyTest(double error) {
-		boolean changeDetected = false;
-		if (this.changeDetection == false) { 
-			changeDetected = pageHinckleyTest.update(error);
-		}
-		return changeDetected;
-	}
-	
-	public boolean updateChangeDetection(double error) {
-		if(changeDetection==false){
-			return  pageHinckleyTest.update(error);
-		}
-		else
-			return false;
 	}
 	
 	/*

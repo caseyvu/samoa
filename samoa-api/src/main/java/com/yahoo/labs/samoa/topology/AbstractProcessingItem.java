@@ -158,4 +158,5 @@ public abstract class AbstractProcessingItem implements ProcessingItem {
     public ProcessingItem connectInputAllStream(Stream inputStream) {
     	return this.addInputStream(inputStream, PartitioningScheme.BROADCAST);
     }
+
 }

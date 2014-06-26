@@ -1,4 +1,4 @@
-package com.yahoo.labs.samoa.learners.classifiers.rules.distributed1;
+package com.yahoo.labs.samoa.learners.classifiers.rules.distributed;
 
 /*
  * #%L
@@ -21,25 +21,31 @@ package com.yahoo.labs.samoa.learners.classifiers.rules.distributed1;
  */
 
 import com.yahoo.labs.samoa.core.ContentEvent;
-import com.yahoo.labs.samoa.instances.Instance;
+import com.yahoo.labs.samoa.learners.classifiers.rules.common.RulePassiveRegressionNode;
+import com.yahoo.labs.samoa.learners.classifiers.rules.common.RuleSplitNode;
 
-public class AssignmentContentEvent implements ContentEvent {
+public class PredicateContentEvent implements ContentEvent {
 
 	/**
 	 * 
 	 */
-	private static final long serialVersionUID = 1031695762172836629L;
-
-	private int ruleNumberID;
-	private Instance instance;
+	private static final long serialVersionUID = 7909435830443732451L;
 	
-	public AssignmentContentEvent() {
-		this(0, null);
+	private int ruleNumberID;
+	private RuleSplitNode ruleSplitNode;
+	private RulePassiveRegressionNode learningNode;
+	
+	/*
+	 * Constructor
+	 */
+	public PredicateContentEvent() {
+		this(0, null, null);
 	}
 	
-	public AssignmentContentEvent(int ruleID, Instance instance) {
+	public PredicateContentEvent (int ruleID, RuleSplitNode ruleSplitNode, RulePassiveRegressionNode learningNode) {
 		this.ruleNumberID = ruleID;
-		this.instance = instance;
+		this.ruleSplitNode = ruleSplitNode; // is this is null: this is for updating learningNode only
+		this.learningNode = learningNode;
 	}
 	
 	@Override
@@ -54,15 +60,19 @@ public class AssignmentContentEvent implements ContentEvent {
 
 	@Override
 	public boolean isLastEvent() {
-		return false;
-	}
-	
-	public Instance getInstance() {
-		return this.instance;
+		return false; // N/A
 	}
 	
 	public int getRuleNumberID() {
 		return this.ruleNumberID;
+	}
+	
+	public RuleSplitNode getRuleSplitNode() {
+		return this.ruleSplitNode;
+	}
+	
+	public RulePassiveRegressionNode getLearningNode() {
+		return this.learningNode;
 	}
 
 }

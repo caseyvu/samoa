@@ -124,7 +124,7 @@ public class SamzaEntranceProcessingItem extends AbstractEntranceProcessingItem
 	@Override
 	public void process(IncomingMessageEnvelope envelope, MessageCollector collector, TaskCoordinator coordinator) throws Exception {
 		((SamzaStream)this.getOutputStream()).setCollector(collector);
-		InstanceContentEvent event = (InstanceContentEvent) envelope.getMessage();
+		ContentEvent event = (ContentEvent) envelope.getMessage();
 		this.getOutputStream().put(event);
 	}
 	
@@ -173,6 +173,13 @@ public class SamzaEntranceProcessingItem extends AbstractEntranceProcessingItem
 		
 		@Override
 		public void start() {
+			// Sleep for 3 mins before sending to wait for other PIs to start
+			try {
+				Thread.sleep(180000);
+			} catch (InterruptedException e) {
+				return;
+			}
+			
 			Thread processorPollingThread = new Thread(
 	                new Runnable() {
 	                    @Override

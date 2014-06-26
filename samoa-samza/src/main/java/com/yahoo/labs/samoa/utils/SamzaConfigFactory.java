@@ -84,6 +84,7 @@ public class SamzaConfigFactory {
 	// YARN 
 	public static final String YARN_PACKAGE_KEY = "yarn.package.path";
 	public static final String CONTAINER_MEMORY_KEY = "yarn.container.memory.mb";
+	public static final String CONTAINER_CORES_KEY = "yarn.container.cpu.cores";
 	public static final String AM_MEMORY_KEY = "yarn.am.container.memory.mb";
 	public static final String CONTAINER_COUNT_KEY = "yarn.container.count";
 	// TASK (SAMZA original)
@@ -174,6 +175,9 @@ public class SamzaConfigFactory {
 	 */
 	private Map<String,String> getMapForPI(SamzaProcessingItem pi, String filename, String filesystem) throws Exception {
 		Map<String,String> map = getBasicSystemConfig();
+		
+		// No. of CPU cores
+		setNumberOfCores(map, pi.getNumberOfCores());
 
 		// Set job name, task class, task inputs (from SamzaProcessingItem)
 		setJobName(map, pi.getName());
@@ -404,7 +408,7 @@ public class SamzaConfigFactory {
 			map.put(YARN_PACKAGE_KEY,SystemsUtils.getHDFSNameNodeUri()+jarPath);
 			map.put(CONTAINER_MEMORY_KEY, Integer.toString(this.containerMemory));
 			map.put(AM_MEMORY_KEY, Integer.toString(this.amMemory));
-			map.put(CONTAINER_COUNT_KEY, "1"); // TODO: should it = parallelism?
+			map.put(CONTAINER_COUNT_KEY, "1");
 			map.put(YARN_CONF_HOME_KEY, SystemsUtils.getHadoopConfigHome());
 		}
 
@@ -456,6 +460,13 @@ public class SamzaConfigFactory {
 		int res = parallelism / piPerContainer;
 		if (parallelism % piPerContainer != 0) res++;
 		map.put(CONTAINER_COUNT_KEY, Integer.toString(res));
+	}
+	
+	private static void setNumberOfCores(Map<String, String> map, int cores) {
+		if (cores <= 1) return;
+		map.put(CONTAINER_CORES_KEY, Integer.toString(cores));
+		//int orgMem = Integer.parseInt(map.get(CONTAINER_MEMORY_KEY));
+		//map.put(CONTAINER_MEMORY_KEY, Integer.toString(orgMem*cores));
 	}
 	
 	private static void setKafkaSystem(Map<String,String> map, String systemName, String zk, String brokers, int batchSize) {

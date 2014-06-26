@@ -22,6 +22,7 @@ package com.yahoo.labs.samoa.learners.classifiers.rules.common;
 
 import com.yahoo.labs.samoa.moa.classifiers.core.conditionaltests.InstanceConditionalTest;
 import com.yahoo.labs.samoa.moa.classifiers.rules.core.Predicate;
+import com.yahoo.labs.samoa.moa.classifiers.rules.core.conditionaltests.NumericAttributeBinaryRulePredicate;
 import com.yahoo.labs.samoa.learners.classifiers.trees.SplitNode;
 import com.yahoo.labs.samoa.instances.Instance;
 
@@ -44,6 +45,11 @@ public class RuleSplitNode extends SplitNode {
     }
     public RuleSplitNode(InstanceConditionalTest splitTest, double[] classObservations) {
         super(splitTest, classObservations);
+    }
+    
+    public RuleSplitNode getACopy() {
+    	InstanceConditionalTest splitTest = new NumericAttributeBinaryRulePredicate((NumericAttributeBinaryRulePredicate) this.getSplitTest());
+		return new RuleSplitNode(splitTest, this.getObservedClassDistribution());
     }
 
     public boolean evaluate(Instance instance) {

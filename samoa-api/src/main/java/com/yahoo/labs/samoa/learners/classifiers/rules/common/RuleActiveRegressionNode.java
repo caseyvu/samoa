@@ -34,6 +34,7 @@ import com.yahoo.labs.samoa.moa.classifiers.core.splitcriteria.SplitCriterion;
 import com.yahoo.labs.samoa.moa.classifiers.rules.core.attributeclassobservers.FIMTDDNumericAttributeClassLimitObserver;
 import com.yahoo.labs.samoa.moa.classifiers.rules.core.splitcriteria.SDRSplitCriterionAMRules;
 import com.yahoo.labs.samoa.moa.classifiers.rules.driftdetection.PageHinkleyFading;
+import com.yahoo.labs.samoa.moa.classifiers.rules.driftdetection.PageHinkleyTest;
 
 public class RuleActiveRegressionNode extends RuleRegressionNode implements RuleActiveLearningNode {
 
@@ -43,6 +44,9 @@ public class RuleActiveRegressionNode extends RuleRegressionNode implements Rule
 	private static final long serialVersionUID = 519854943188168546L;
 
 	protected int splitIndex = 0;
+	
+	protected PageHinkleyTest pageHinckleyTest;
+	protected boolean changeDetection;
 	
 	protected double[] statisticsNewRuleActiveLearningNode = null;
 	protected double[] statisticsBranchSplit = null;
@@ -134,6 +138,22 @@ public class RuleActiveRegressionNode extends RuleRegressionNode implements Rule
 	/*
 	 * Update with input instance
 	 */
+	public boolean updatePageHinckleyTest(double error) {
+		boolean changeDetected = false;
+		if (this.changeDetection == false) { 
+			changeDetected = pageHinckleyTest.update(error);
+		}
+		return changeDetected;
+	}
+	
+	public boolean updateChangeDetection(double error) {
+		if(changeDetection==false){
+			return  pageHinckleyTest.update(error);
+		}
+		else
+			return false;
+	}
+	
 	@Override
 	public void updateStatistics(Instance inst) {
 		// Update the statistics for this node

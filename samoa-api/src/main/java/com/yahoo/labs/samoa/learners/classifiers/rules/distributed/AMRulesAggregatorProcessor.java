@@ -1,4 +1,4 @@
-package com.yahoo.labs.samoa.learners.classifiers.rules.distributed1;
+package com.yahoo.labs.samoa.learners.classifiers.rules.distributed;
 
 /*
  * #%L
@@ -24,14 +24,15 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.yahoo.labs.samoa.core.ContentEvent;
 import com.yahoo.labs.samoa.core.Processor;
 import com.yahoo.labs.samoa.instances.Instance;
 import com.yahoo.labs.samoa.instances.Instances;
 import com.yahoo.labs.samoa.learners.InstanceContentEvent;
 import com.yahoo.labs.samoa.learners.ResultContentEvent;
-import com.yahoo.labs.samoa.learners.classifiers.rules.centralized.AMRulesRegressorProcessor;
-import com.yahoo.labs.samoa.learners.classifiers.rules.centralized.AMRulesRegressorProcessor.Builder;
 import com.yahoo.labs.samoa.learners.classifiers.rules.common.ActiveRule;
 import com.yahoo.labs.samoa.learners.classifiers.rules.common.LearningRule;
 import com.yahoo.labs.samoa.learners.classifiers.rules.common.PassiveRule;
@@ -39,6 +40,8 @@ import com.yahoo.labs.samoa.learners.classifiers.rules.common.Perceptron;
 import com.yahoo.labs.samoa.learners.classifiers.rules.common.RuleActiveRegressionNode;
 import com.yahoo.labs.samoa.moa.classifiers.rules.core.attributeclassobservers.FIMTDDNumericAttributeClassLimitObserver;
 import com.yahoo.labs.samoa.moa.classifiers.rules.core.voting.ErrorWeightedVote;
+import com.yahoo.labs.samoa.moa.classifiers.rules.core.voting.InverseErrorWeightedVote;
+import com.yahoo.labs.samoa.moa.classifiers.rules.core.voting.UniformWeightedVote;
 import com.yahoo.labs.samoa.topology.Stream;
 
 public class AMRulesAggregatorProcessor implements Processor {
@@ -48,13 +51,16 @@ public class AMRulesAggregatorProcessor implements Processor {
 	 */
 	private static final long serialVersionUID = 6303385725332704251L;
 
+	private static final Logger logger = 
+			LoggerFactory.getLogger(AMRulesAggregatorProcessor.class);
+	
 	private int processorId;
 
 	// Rules & default rule
-	protected List<PassiveRule> ruleSet;
-	protected ActiveRule defaultRule;
-	protected int ruleNumberID;
-	protected double[] statistics;
+	protected transient List<PassiveRule> ruleSet;
+	protected transient ActiveRule defaultRule;
+	protected transient int ruleNumberID;
+	protected transient double[] statistics;
 
 	// SAMOA Stream
 	private Stream statisticsStream;
@@ -80,7 +86,7 @@ public class AMRulesAggregatorProcessor implements Processor {
 	protected boolean unorderedRules;
 
 	protected FIMTDDNumericAttributeClassLimitObserver numericObserver;
-	protected ErrorWeightedVote voteType;
+	protected int voteType;
 	
 	/*
 	 * Constructor
@@ -113,30 +119,88 @@ public class AMRulesAggregatorProcessor implements Processor {
 	public boolean process(ContentEvent event) {
 		if (event instanceof InstanceContentEvent) {
 			InstanceContentEvent instanceEvent = (InstanceContentEvent) event;
-			// predict
-			if (instanceEvent.isTesting()) {
-				this.predictOnInstance(instanceEvent);
-			}
-		
-			// train
-			if (instanceEvent.isTraining()) {
-				this.trainOnInstance(instanceEvent);
-			}
+			this.processInstanceEvent(instanceEvent);
 		}
 		else if (event instanceof PredicateContentEvent) {
 			this.updateRuleSplitNode((PredicateContentEvent) event);
+		}
+		else if (event instanceof RuleContentEvent) {
+			RuleContentEvent rce = (RuleContentEvent) event;
+			if (rce.isRemoving()) {
+				this.removeRule(rce.getRuleNumberID());
+			}
 		}
 		
 		return true;
 	}
 	
-	/*
-	 * Prediction
-	 */
-	private void predictOnInstance (InstanceContentEvent instanceEvent) {
-		double[] prediction = getVotesForInstance(instanceEvent.getInstance());
-		ResultContentEvent rce = newResultContentEvent(prediction, instanceEvent);
-		resultStream.put(rce);
+	// Merge predict and train so we only check for covering rules one time
+	private void processInstanceEvent(InstanceContentEvent instanceEvent) {
+		Instance instance = instanceEvent.getInstance();
+		boolean predictionCovered = false;
+		boolean trainingCovered = false;
+		boolean continuePrediction = instanceEvent.isTesting();
+		boolean continueTraining = instanceEvent.isTraining();
+		
+		ErrorWeightedVote errorWeightedVote = newErrorWeightedVote();
+		Iterator<PassiveRule> ruleIterator= this.ruleSet.iterator();
+		while (ruleIterator.hasNext()) { 
+			if (!continuePrediction && !continueTraining)
+				break;
+			
+			PassiveRule rule = ruleIterator.next();
+			
+			if (rule.isCovering(instance) == true){
+				predictionCovered = true;
+
+				if (continuePrediction) {
+					double [] vote=rule.getPrediction(instance);
+					double error= rule.getCurrentError();
+					errorWeightedVote.addVote(vote,error);
+					if (!this.unorderedRules) continuePrediction = false;
+				}
+				
+				if (continueTraining) {
+					if (!isAnomaly(instance, rule)) {
+						trainingCovered = true;
+						rule.updateStatistics(instance);
+						// Send instance to statistics PIs
+						sendInstanceToRule(instance, rule.getRuleNumberID());
+						
+						if (!this.unorderedRules) continueTraining = false;
+					}
+				}
+			}
+		}
+		
+		if (predictionCovered) {
+			// Combined prediction
+			ResultContentEvent rce = newResultContentEvent(errorWeightedVote.computeWeightedVote(), instanceEvent);
+			resultStream.put(rce);
+		}
+		else if (instanceEvent.isTesting()) {
+			// predict with default rule
+			double [] vote=defaultRule.getPrediction(instance);
+			ResultContentEvent rce = newResultContentEvent(vote, instanceEvent);
+			resultStream.put(rce);
+		}
+		
+		if (!trainingCovered && instanceEvent.isTraining()) {
+			// train default rule with this instance
+			defaultRule.updateStatistics(instance);
+			if (defaultRule.getInstancesSeen() % this.gracePeriod == 0.0) {
+				if (defaultRule.tryToExpand(this.splitConfidence, this.tieThreshold) == true) {
+					ActiveRule newDefaultRule=newRule(defaultRule.getRuleNumberID(),(RuleActiveRegressionNode)defaultRule.getLearningNode(),
+							((RuleActiveRegressionNode)defaultRule.getLearningNode()).getStatisticsOtherBranchSplit()); //other branch
+					defaultRule.split();
+					defaultRule.setRuleNumberID(++ruleNumberID);
+					this.ruleSet.add(new PassiveRule(this.defaultRule));
+					// send to statistics PI
+					sendAddRuleEvent(defaultRule.getRuleNumberID(), this.defaultRule);
+					defaultRule=newDefaultRule;
+				}
+			}
+		}
 	}
 	
 	/**
@@ -152,118 +216,11 @@ public class AMRulesAggregatorProcessor implements Processor {
 		rce.setEvaluationIndex(inEvent.getEvaluationIndex());
 		return rce;
 	}
-	
-	/**
-	 * getVotesForInstance extension of the instance method getVotesForInstance
-	 * in moa.classifier.java
-	 * returns the prediction of the instance.
-	 * Called in EvaluateModelRegression
-	 */            
-	private double[] getVotesForInstance(Instance instance) {
-		ErrorWeightedVote errorWeightedVote=newErrorWeightedVote();
-		//DoubleVector combinedVote = new DoubleVector();   
-		int numberOfRulesCovering = 0;
-		
-		for (PassiveRule rule: ruleSet) {
-			if (rule.isCovering(instance) == true){
-				numberOfRulesCovering++;
-				//DoubleVector vote = new DoubleVector(rule.getPrediction(instance));
-				double [] vote=rule.getPrediction(instance);
-				double error= rule.getCurrentError();
-				errorWeightedVote.addVote(vote,error);
-				//combinedVote.addValues(vote);
-				if (!this.unorderedRules) { // Ordered Rules Option.
-					break; // Only one rule cover the instance.
-				}
-			}
-		}
-
-		if (numberOfRulesCovering == 0) {
-			//combinedVote = new DoubleVector(defaultRule.getPrediction(instance));
-			double [] vote=defaultRule.getPrediction(instance);
-			double error= defaultRule.getCurrentError();
-			errorWeightedVote.addVote(vote,error);	
-		} 	
-		double[] weightedVote=errorWeightedVote.computeWeightedVote();
-		//double weightedError=errorWeightedVote.getWeightedError();
-		
-		return weightedVote;
-	}
 
 	public ErrorWeightedVote newErrorWeightedVote() {
-		return voteType.getACopy();
-	}
-	
-	/*
-	 * Training
-	 */
-	private void trainOnInstance (InstanceContentEvent instanceEvent) {
-		this.trainOnInstanceImpl(instanceEvent.getInstance());
-	}
-	public void trainOnInstanceImpl(Instance instance) {
-		/**
-		 * AMRules Algorithm
-		 * 
-		 //For each rule in the rule set
-			//If rule covers the instance
-				//if the instance is not an anomaly	
-					//Update Change Detection Tests
-				    	//Compute prediction error
-				    	//Call PHTest
-						//If change is detected then
-							//Remove rule
-						//Else
-							//Update sufficient statistics of rule
-							//If number of examples in rule  > Nmin
-								//Expand rule
-						//If ordered set then
-							//break
-			//If none of the rule covers the instance
-				//Update sufficient statistics of default rule
-				//If number of examples in default rule is multiple of Nmin
-					//Expand default rule and add it to the set of rules
-					//Reset the default rule
-		 */
-		boolean rulesCoveringInstance = false;
-		Iterator<PassiveRule> ruleIterator= this.ruleSet.iterator();
-		while (ruleIterator.hasNext()) { 
-			PassiveRule rule = ruleIterator.next();
-			if (rule.isCovering(instance) == true) {
-				rulesCoveringInstance = true;
-				if (isAnomaly(instance, rule) == false) {
-					//Update Change Detection Tests
-					double error = rule.computeError(instance); //Use adaptive mode error
-					boolean changeDetected = rule.getLearningNode().updateChangeDetection(error);
-					if (changeDetected == true) {
-						ruleIterator.remove();
-						// Send to statistics PIs
-						sendRemoveRuleEvent(rule.getRuleNumberID());
-					} else {
-						rule.updateStatistics(instance);
-						// Send instance to statistics PIs
-						sendInstanceToRule(instance, rule.getRuleNumberID());
-					}
-					if (!this.unorderedRules) 
-						break;
-				}
-			}
-		}	
-
-		if (rulesCoveringInstance == false){ 
-			defaultRule.updateStatistics(instance);
-			if (defaultRule.getInstancesSeen() % this.gracePeriod == 0.0) {
-				if (defaultRule.tryToExpand(this.splitConfidence, this.tieThreshold) == true) {
-					ActiveRule newDefaultRule=newRule(defaultRule.getRuleNumberID(),(RuleActiveRegressionNode)defaultRule.getLearningNode(),
-							((RuleActiveRegressionNode)defaultRule.getLearningNode()).getStatisticsOtherBranchSplit()); //other branch
-					defaultRule.split();
-					defaultRule.setRuleNumberID(++ruleNumberID);
-					this.ruleSet.add(new PassiveRule(this.defaultRule));
-					// send to statistics PI
-					sendAddRuleEvent(defaultRule.getRuleNumberID(), this.defaultRule);
-					defaultRule=newDefaultRule;
-				}
-			}
-		}
+		if (voteType == 1) 
+			return new UniformWeightedVote();
+		return new InverseErrorWeightedVote();
 	}
 
 	/**
@@ -339,9 +296,22 @@ public class AMRulesAggregatorProcessor implements Processor {
 		int ruleID = pce.getRuleNumberID();
 		for (PassiveRule rule:ruleSet) {
 			if (rule.getRuleNumberID() == ruleID) {
-				if (rule.nodeListAdd(pce.getRuleSplitNode())) {
+				if (pce.getRuleSplitNode() != null)
+					rule.nodeListAdd(pce.getRuleSplitNode());
+				if (pce.getLearningNode() != null)
 					rule.setLearningNode(pce.getLearningNode());
-				}
+			}
+		}
+	}
+	
+	/*
+	 * Remove rule
+	 */
+	private void removeRule(int ruleID) {
+		for (PassiveRule rule:ruleSet) {
+			if (rule.getRuleNumberID() == ruleID) {
+				ruleSet.remove(rule);
+				break;
 			}
 		}
 	}
@@ -377,10 +347,7 @@ public class AMRulesAggregatorProcessor implements Processor {
 		this.statisticsStream.put(ace);
 	}
 	
-	private void sendRemoveRuleEvent(int ruleID) {
-		RuleContentEvent rce = new RuleContentEvent(ruleID, null, true);
-		this.statisticsStream.put(rce);
-	}
+	
 	
 	private void sendAddRuleEvent(int ruleID, ActiveRule rule) {
 		RuleContentEvent rce = new RuleContentEvent(ruleID, rule, false);
@@ -435,7 +402,7 @@ public class AMRulesAggregatorProcessor implements Processor {
 		private boolean unorderedRules;
 		
 		private FIMTDDNumericAttributeClassLimitObserver numericObserver;
-		private ErrorWeightedVote voteType;
+		private int voteType;
 		
 		private Instances dataset;
 		
@@ -539,7 +506,7 @@ public class AMRulesAggregatorProcessor implements Processor {
 			return this;
 		}
 		
-		public Builder voteType(ErrorWeightedVote voteType) {
+		public Builder voteType(int voteType) {
 			this.voteType = voteType;
 			return this;
 		}

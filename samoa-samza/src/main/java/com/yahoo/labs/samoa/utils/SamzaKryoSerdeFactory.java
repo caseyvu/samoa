@@ -129,6 +129,7 @@ public class SamzaKryoSerdeFactory<T> implements SerdeFactory<T> {
 		 */
 		@Override
 		public byte[] toBytes(V obj) {
+			
 			ByteArrayOutputStream bos = new ByteArrayOutputStream();
 			Output output = new Output(bos);
 			kryo.writeClassAndObject(output, obj);

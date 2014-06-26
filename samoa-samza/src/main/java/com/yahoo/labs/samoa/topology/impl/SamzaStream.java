@@ -52,6 +52,9 @@ public class SamzaStream extends AbstractStream implements Serializable  {
 	private transient MessageCollector collector;
 	private String systemName;
 	
+	private int maxCount;
+	private int counter;
+	
 	/*
 	 * Constructor
 	 */
@@ -64,6 +67,7 @@ public class SamzaStream extends AbstractStream implements Serializable  {
 		this.setStreamId(samzaPi.getName()+"-"+Integer.toString(index));
 		// init list of SamzaSystemStream
 		systemStreams = new ArrayList<SamzaSystemStream>();
+		this.maxCount = 1;
 	}
 	
 	/*
@@ -87,6 +91,7 @@ public class SamzaStream extends AbstractStream implements Serializable  {
 	public SamzaSystemStream addDestination(StreamDestination destination) {
 		PartitioningScheme scheme = destination.getPartitioningScheme();
 		int parallelism = destination.getParallelism();
+		this.maxCount *= parallelism;
 		
 		SamzaSystemStream resultStream = null;
 		for (int i=0; i<systemStreams.size(); i++) {
@@ -117,6 +122,7 @@ public class SamzaStream extends AbstractStream implements Serializable  {
 	}
 	
 	public void onCreate() {
+		this.counter = 0;
 		for (SamzaSystemStream stream:systemStreams) {
 			stream.initSystemStream();
 		}
@@ -128,8 +134,11 @@ public class SamzaStream extends AbstractStream implements Serializable  {
 	@Override
 	public void put(ContentEvent event) {
 		for (SamzaSystemStream stream:systemStreams) {
-			stream.send(collector,event);
+			stream.send(collector,event,this.counter);
 		}
+		
+		this.counter++;
+		if (this.counter >= this.maxCount) this.counter = 0;
 	}
 	
 	public List<SamzaSystemStream> getSystemStreams() {
@@ -211,13 +220,13 @@ public class SamzaStream extends AbstractStream implements Serializable  {
 		/*
 		 * Send a ContentEvent
 		 */
-		public void send(MessageCollector collector, ContentEvent contentEvent) {
+		public void send(MessageCollector collector, ContentEvent contentEvent, int counter) {
 			if (actualSystemStream == null) 
 				this.initSystemStream();
 			
 			switch(this.scheme) {
 			case SHUFFLE:
-				this.sendShuffle(collector, contentEvent);
+				this.sendShuffle(collector, contentEvent, counter);
 				break;
 			case GROUP_BY_KEY:
 				this.sendGroupByKey(collector, contentEvent);
@@ -231,15 +240,15 @@ public class SamzaStream extends AbstractStream implements Serializable  {
 		/*
 		 * Helpers
 		 */
-		private synchronized void sendShuffle(MessageCollector collector, ContentEvent event) {
-			collector.send(new OutgoingMessageEnvelope(this.actualSystemStream, event));
+		private void sendShuffle(MessageCollector collector, ContentEvent event, int counter) {
+			collector.send(new OutgoingMessageEnvelope(this.actualSystemStream, counter, null, event));
 		}
 		
 		private void sendGroupByKey(MessageCollector collector, ContentEvent event) {
 			collector.send(new OutgoingMessageEnvelope(this.actualSystemStream, event.getKey(), null, event));
 		}
 
-		private synchronized void sendBroadcast(MessageCollector collector, ContentEvent event) {
+		private void sendBroadcast(MessageCollector collector, ContentEvent event) {
 			for (int i=0; i<parallelism; i++) {
 				collector.send(new OutgoingMessageEnvelope(this.actualSystemStream, i, null, event));
 			}
